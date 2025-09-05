@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة تحكم المزارع - مراقبة متقدمة</title>
+    <style>
+        :root {
+            --primary-green: #2E8B57;
+            --dark-green: #006400;
+            --light-green: #F0FFF0;
+            --brown: #8B4513;
+            --gold: #DAA520;
+            --text-dark: #333;
+            --warning-bg: #fff3cd;
+            --warning-border: #ffeaa7;
+            --success-bg: #d4edda;
+            --success-border: #c3e6cb;
+            --danger-bg: #f8d7da;
+            --danger-border: #f5c6cb;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Tajawal', sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, var(--dark-green), var(--primary-green));
+            color: white;
+            padding: 1.5rem 2rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .farm-info h1 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .farm-meta {
+            opacity: 0.9;
+            font-size: 1rem;
+        }
+        
+        .live-status {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(255,255,255,0.2);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #00ff00;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .dashboard-grid {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            grid-template-rows: auto auto auto;
+            gap: 2rem;
+            grid-template-areas: 
+                "kpis alerts"
+                "charts alerts"
+                "recommendations waste";
+        }
+        
+        .kpi-section {
+            grid-area: kpis;
+        }
+        
+        .charts-section {
+            grid-area: charts;
+        }
+        
+        .alerts-section {
+            grid-area: alerts;
+        }
+        
+        .recommendations-section {
+            grid-area: recommendations;
+        }
+        
+        .waste-section {
+            grid-area: waste;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 2rem;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        
+        .card h2 {
+            font-size: 1.4rem;
+            margin-bottom: 1.5rem;
+            color: var(--dark-green);
+            border-bottom: 2px solid #eee;
+            padding-bottom: 0.5rem;
+        }
+        
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        .kpi-card {
+            text-align: center;
+            padding: 1.5rem;
+            background: linear-gradient(135deg, var(--light-green), #e8f5e8);
+            border-radius: 12px;
+            border: 2px solid transparent;
+            transition: transform 0.3s ease;
+        }
+        
+        .kpi-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--primary-green);
+        }
+        
+        .kpi-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: var(--dark-green);
+            margin-bottom: 0.5rem;
+        }
+        
+        .kpi-label {
+            font-size: 1rem;
+            color: #666;
+            margin-bottom: 0.5rem;
+        }
+        
+        .kpi-trend {
+            font-size: 0.9rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 15px;
+            font-weight: bold;
+        }
+        
+        .trend-up {
+            background: var(--success-bg);
+            color: #155724;
+        }
+        
+        .trend-down {
+            background: var(--danger-bg);
+            color: #721c24;
+        }
+        
+        .trend-stable {
+            background: var(--warning-bg);
+            color: #856404;
+        }
+        
+        .chart-placeholder {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border: 2px dashed #adb5bd;
+            height: 300px;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #6c757d;
+            font-size: 1.1rem;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .chart-placeholder::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary-green), var(--gold));
+        }
+        
+        .alert-item {
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 10px;
+            border-right: 4px solid;
+            position: relative;
+            transition: transform 0.2s ease;
+        }
+        
+        .alert-item:hover {
+            transform: translateX(-5px);
+        }
+        
+        .alert-critical {
+            background: var(--danger-bg);
+            border-color: #dc3545;
+        }
+        
+        .alert-warning {
+            background: var(--warning-bg);
+            border-color: #ffc107;
+        }
+        
+        .alert-info {
+            background: #d1ecf1;
+            border-color: #17a2b8;
+        }
+        
+        .alert-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        
+        .alert-title {
+            font-weight: bold;
+            font-size: 1rem;
+        }
+        
+        .alert-time {
+            font-size: 0.8rem;
+            opacity: 0.7;
+        }
+        
+        .alert-description {
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+        
+        .recommendation-card {
+            background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+            border: 1px solid #90caf9;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .recommendation-card h4 {
+            color: #0d47a1;
+            margin-bottom: 0.5rem;
+            font-size: 1.1rem;
+        }
+        
+        .recommendation-card p {
+            color: #1565c0;
+            line-height: 1.5;
+        }
+        
+        .waste-opportunity {
+            background: linear-gradient(135deg, #fff3e0, #ffe0b2);
+            border: 1px solid #ffb74d;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .waste-opportunity h4 {
+            color: #e65100;
+            margin-bottom: 0.5rem;
+            font-size: 1.1rem;
+        }
+        
+        .waste-opportunity p {
+            color: #f57c00;
+            line-height: 1.5;
+            margin-bottom: 1rem;
+        }
+        
+        .catalog-link {
+            display: inline-block;
+            background: var(--brown);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: transform 0.2s ease;
+        }
+        
+        .catalog-link:hover {
+            transform: scale(1.05);
+            color: white;
+        }
+        
+        .floating-tips {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: var(--dark-green);
+            color: white;
+            padding: 1rem;
+            border-radius: 10px;
+            max-width: 300px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            z-index: 1000;
+            animation: slideIn 0.5s ease;
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(-100%); }
+            to { transform: translateX(0); }
+        }
+        
+        .tips-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        
+        .close-tips {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+        
+        .ndvi-gauge {
+            position: relative;
+            width: 120px;
+            height: 60px;
+            margin: 0 auto;
+        }
+        
+        .gauge-bg {
+            width: 100%;
+            height: 100%;
+            background: conic-gradient(from 180deg, #dc3545 0deg, #ffc107 120deg, #28a745 180deg);
+            border-radius: 120px 120px 0 0;
+            position: relative;
+        }
+        
+        .gauge-needle {
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            width: 2px;
+            height: 50px;
+            background: #333;
+            transform-origin: bottom center;
+            transform: translateX(-50%) rotate(45deg);
+        }
+        
+        .gauge-center {
+            position: absolute;
+            bottom: -5px;
+            left: 50%;
+            width: 10px;
+            height: 10px;
+            background: #333;
+            border-radius: 50%;
+            transform: translateX(-50%);
+        }
+        
+        @media (max-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+                grid-template-areas: 
+                    "kpis"
+                    "alerts"
+                    "charts"
+                    "recommendations"
+                    "waste";
+                padding: 1rem;
+            }
+            
+            .header-content {
+                flex-direction: column;
+                gap: 1rem;
+                text-align: center;
+            }
+            
+            .kpi-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <div class="farm-info">
+                <h1>🌴 مزرعة الواحة الخضراء</h1>
+                <div class="farm-meta">المنطقة: المدينة المنورة | المساحة: 50 هكتار | عدد النخيل: 2,500 شجرة</div>
+            </div>
+            <div class="live-status">
+                <div class="status-indicator">
+                    <div class="status-dot"></div>
+                    <span>مراقبة مباشرة</span>
+                </div>
+                <div class="status-indicator">
+                    <span>📡</span>
+                    <span>آخر تحديث: 10:30 ص</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="dashboard-grid">
+        <!-- KPIs Section -->
+        <section class="kpi-section">
+            <div class="card">
+                <h2>📊 المؤشرات الرئيسية للأداء</h2>
+                <div class="kpi-grid">
+                    <div class="kpi-card">
+                        <div class="ndvi-gauge">
+                            <div class="gauge-bg">
+                                <div class="gauge-needle"></div>
+                                <div class="gauge-center"></div>
+                            </div>
+                        </div>
+                        <div class="kpi-value">0.68</div>
+                        <div class="kpi-label">مؤشر الصحة النباتية (NDVI)</div>
+                        <div class="kpi-trend trend-up">↗ +0.05 من الأسبوع الماضي</div>
+                    </div>
+                    
+                    <div class="kpi-card">
+                        <div class="kpi-value">-0.15</div>
+                        <div class="kpi-label">مؤشر المياه (NDWI)</div>
+                        <div class="kpi-trend trend-down">⚠️ يحتاج ري</div>
+                    </div>
+                    
+                    <div class="kpi-card">
+                        <div class="kpi-value">ممتازة</div>
+                        <div class="kpi-label">فئة الأداء</div>
+                        <div class="kpi-trend trend-up">🏆 ضمن أفضل 15%</div>
+                    </div>
+                    
+                    <div class="kpi-card">
+                        <div class="kpi-value">120</div>
+                        <div class="kpi-label">توقع الحصاد (طن)</div>
+                        <div class="kpi-trend trend-up">📈 +15% من العام الماضي</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Charts Section -->
+        <section class="charts-section">
+            <div class="card">
+                <h2>📈 تطور صحة المحصول (آخر 90 يوم)</h2>
+                <div class="chart-placeholder">
+                    <div>📊</div>
+                    <div>رسم بياني تفاعلي لمؤشر NDVI</div>
+                    <div style="font-size: 0.9rem; margin-top: 1rem;">يظهر الاتجاه التصاعدي للصحة النباتية</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Alerts Section -->
+        <section class="alerts-section">
+            <div class="card">
+                <h2>🚨 التنبيهات والإشعارات</h2>
+                
+                <div class="alert-item alert-critical">
+                    <div class="alert-header">
+                        <div class="alert-title">🔥 انخفاض مفاجئ في NDVI</div>
+                        <div class="alert-time">منذ ساعتين</div>
+                    </div>
+                    <div class="alert-description">
+                        تم اكتشاف انخفاض غير طبيعي في القطاع الشمالي الشرقي. قد يشير إلى مشكلة في الري أو إصابة بآفات.
+                    </div>
+                </div>
+                
+                <div class="alert-item alert-info">
+                    <div class="alert-header">
+                        <div class="alert-title">💡 فرصة استثمارية</div>
+                        <div class="alert-time">اليوم</div>
+                    </div>
+                    <div class="alert-description">
+                        التوقعات تشير إلى حصاد وفير هذا الموسم. هذا يعني زيادة في المخلفات العضوية - فرصة لدخل إضافي!
+                    </div>
+                </div>
+                
+                <div class="alert-item alert-warning">
+                    <div class="alert-header">
+                        <div class="alert-title">🌡️ تحذير من الحر</div>
+                        <div class="alert-time">أمس</div>
+                    </div>
+                    <div class="alert-description">
+                        درجات حرارة مرتفعة متوقعة الأسبوع القادم. زيادة تكرار الري مطلوبة.
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Recommendations Section -->
+        <section class="recommendations-section">
+            <div class="card">
+                <h2>💡 توصيات ذكية</h2>
+                
+                <div class="recommendation-card">
+                    <h4>🚿 تحسين نظام الري</h4>
+                    <p>بناءً على مؤشر NDWI المنخفض، نوصي بزيادة تكرار الري في القطاع الشمالي بنسبة 20% للأسبوع القادم.</p>
+                </div>
+                
+                <div class="recommendation-card">
+                    <h4>🌱 موسم الحصاد الأمثل</h4>
+                    <p>التحليل يشير إلى أن أفضل وقت للحصاد سيكون في الفترة من 15-25 أكتوبر للحصول على أعلى جودة.</p>
+                </div>
+                
+                <div class="recommendation-card">
+                    <h4>🔍 فحص دوري</h4>
+                    <p>يُنصح بفحص القطاع الشمالي الشرقي خلال 24 ساعة للتأكد من عدم وجود آفات أو مشاكل في التربة.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Waste Management Section -->
+        <section class="waste-section">
+            <div class="card">
+                <h2>♻️ إدارة المخلفات الذكية</h2>
+                
+                <div class="waste-opportunity">
+                    <h4>🎯 فرصة ذهبية!</h4>
+                    <p>مع توقع حصاد 120 طن، ستنتج مزرعتك حوالي 30 طن من المخلفات العضوية القيمة (السعف والليف).</p>
+                    <a href="#catalog" class="catalog-link">📚 استكشف كتالوج المنتجات</a>
+                </div>
+                
+                <div class="waste-opportunity">
+                    <h4>💰 إيرادات إضافية</h4>
+                    <p>يمكن تحويل هذه المخلفات إلى منتجات بقيمة تصل إلى 45,000 ريال إضافية سنوياً:</p>
+                    <ul style="margin: 0.5rem 0; padding-right: 1rem;">
+                        <li>سماد عضوي عالي الجودة</li>
+                        <li>ألياف طبيعية للصناعات</li>
+                        <li>أثاث وحرف يدوية</li>
+                    </ul>
+                    <a href="#marketplace" class="catalog-link">🛒 ابدأ البيع الآن</a>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Floating Tips -->
+    <div class="floating-tips" id="floatingTips">
+        <div class="tips-header">
+            <strong>💡 نصيحة اليوم</strong>
+            <button class="close-tips" onclick="closeTips()">×</button>
+        </div>
+        <div>
+            استخدم السعف المتساقط لصنع أسمدة عضوية طبيعية. هذا يقلل النفايات ويحسن جودة التربة!
+        </div>
+    </div>
+
+    <script>
+        // Simulate real-time data updates
+        function updateKPIs() {
+            const ndviElement = document.querySelector('.kpi-value');
+            if (ndviElement) {
+                const currentValue = parseFloat(ndviElement.textContent);
+                const newValue = Math.max(0.3, Math.min(0.9, currentValue + (Math.random() - 0.5) * 0.02));
+                ndviElement.textContent = newValue.toFixed(2);
+                
+                // Update gauge needle
+                const needle = document.querySelector('.gauge-needle');
+                const angle = (newValue - 0.3) * 150 / 0.6 - 75; // Map 0.3-0.9 to -75 to 75 degrees
+                needle.style.transform = `translateX(-50%) rotate(${angle}deg)`;
+                
+                // Update trend
+                const trend = document.querySelector('.trend-up');
+                const change = (newValue - currentValue).toFixed(3);
+                if (change > 0) {
+                    trend.textContent = `↗ +${change} من الأسبوع الماضي`;
+                    trend.className = 'kpi-trend trend-up';
+                } else if (change < 0) {
+                    trend.textContent = `↘ ${change} من الأسبوع الماضي`;
+                    trend.className = 'kpi-trend trend-down';
+                } else {
+                    trend.textContent = `→ مستقر`;
+                    trend.className = 'kpi-trend trend-stable';
+                }
+            }
+        }
+
+        // Update timestamp
+        function updateTimestamp() {
+            const now = new Date();
+            const time = now.toLocaleTimeString('ar-SA', { 
+                hour: '2-digit', 
+                minute: '2-digit',
+                hour12: false 
+            });
+            document.querySelector('.status-indicator:last-child span:last-child').textContent = `آخر تحديث: ${time}`;
+        }
+
+        // Close floating tips
+        function closeTips() {
+            document.getElementById('floatingTips').style.display = 'none';
+        }
+
+        // Add chart simulation
+        function simulateChart() {
+            const chartPlaceholder = document.querySelector('.chart-placeholder');
+            chartPlaceholder.innerHTML = `
+                <div style="width: 100%; height: 250px; background: linear-gradient(45deg, #e8f5e8, #d4f4d4); border-radius: 8px; display: flex; align-items: center; justify-content: center; position: relative;">
+                    <svg width="90%" height="200" style="position: absolute;">
+                        <defs>
+                            <linearGradient id="chartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                                <stop offset="0%" style="stop-color:#2E8B57;stop-opacity:0.8" />
+                                <stop offset="100%" style="stop-color:#2E8B57;stop-opacity:0.1" />
+                            </linearGradient>
+                        </defs>
+                        <polyline fill="none" stroke="#2E8B57" stroke-width="3" 
+                                  points="10,150 50,140 90,130 130,125 170,120 210,115 250,110 290,105 330,100 370,95"/>
+                        <polygon fill="url(#chartGradient)" 
+                                 points="10,180 50,140 90,130 130,125 170,120 210,115 250,110 290,105 330,100 370,95 370,180"/>
+                    </svg>
+                    <div style="position: absolute; bottom: 10px; right: 10px; font-size: 0.8rem; color: #666;">
+                        اتجاه تصاعدي مستمر لصحة المحصول
+                    </div>
+                </div>
+            `;
+        }
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            updateTimestamp();
+            simulateChart();
+            
+            // Update data every 30 seconds
+            setInterval(updateKPIs, 30000);
+            setInterval(updateTimestamp, 60000);
+            
+            // Add hover effects to cards
+            document.querySelectorAll('.card').forEach(card => {
+                card.addEventListener('mouseenter', function() {
+                    this.style.transform = 'translateY(-5px)';
+                    this.style.boxShadow = '0 12px 30px rgba(0,0,0,0.15)';
+                });
+                
+                card.addEventListener('mouseleave', function() {
+                    this.style.transform = 'translateY(0)';
+                    this.style.boxShadow = '0 8px 25px rgba(0,0,0,0.1)';
+                });
+            });
+        });
+
+        // Add notification system
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: ${type === 'success' ? '#d4edda' : type === 'warning' ? '#fff3cd' : '#d1ecf1'};
+                color: ${type === 'success' ? '#155724' : type === 'warning' ? '#856404' : '#0c5aa6'};
+                padding: 1rem 1.5rem;
+                border-radius: 8px;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+                z-index: 1001;
+                max-width: 300px;
+                animation: slideInRight 0.3s ease;
+            `;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 5000);
+        }
+
+        // Simulate random notifications
+        setTimeout(() => {
+            showNotification('تم تحديث بيانات الأقمار الصناعية', 'success');
+        }, 3000);
+    </script>
+
+    <style>
+        @keyframes slideInRight {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+    </style>
+</body>
+</html>
