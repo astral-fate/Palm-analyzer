@@ -731,3 +731,96 @@ def main():
                 )
                 
                 st.plotly_chart(fig_corr, use_container_width=True)
+                
+                # Insights from correlation analysis
+                st.subheader("🔍 Correlation Insights")
+                
+                # Find highly correlated farms
+                correlation_matrix_no_diag = correlation_matrix.copy()
+                np.fill_diagonal(correlation_matrix_no_diag.values, np.nan)
+                
+                # Get highest correlations
+                corr_stack = correlation_matrix_no_diag.stack()
+                high_corr = corr_stack[corr_stack > 0.8].sort_values(ascending=False)
+                
+                if len(high_corr) > 0:
+                    st.write("**Highly Correlated Farms (>0.8):**")
+                    for (farm1, farm2), corr_val in high_corr.head(5).items():
+                        st.write(f"• {farm1} ↔ {farm2}: {corr_val:.3f}")
+                    st.info("These farms show very similar performance patterns - they may share similar conditions or management practices.")
+                else:
+                    st.info("No farms show extremely high correlation (>0.8), indicating diverse performance patterns.")
+    
+    # Summary section
+    st.markdown("---")
+    
+    # Download consolidated report
+    if 'farms_data' in st.session_state:
+        st.subheader("📥 Export Complete Portfolio Report")
+        
+        # Create summary report
+        portfolio_summary = []
+        for farm_name, data in all_farms_data.items():
+            summary = {
+                'farm_id': farm_name,
+                'total_records': len(data['raw_data']),
+                'date_range_start': data['raw_data'].index.min(),
+                'date_range_end': data['raw_data'].index.max(),
+                'peak_ndvi': data['kpis']['peak_ndvi'],
+                'avg_ndvi': data['kpis']['avg_ndvi'],
+                'min_ndvi': data['kpis']['min_ndvi'],
+                'volatility': data['kpis']['std_ndvi']
+            }
+            portfolio_summary.append(summary)
+        
+        summary_df = pd.DataFrame(portfolio_summary)
+        summary_csv = summary_df.to_csv(index=False)
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.download_button(
+                label="📊 Download Portfolio Summary Report",
+                data=summary_csv,
+                file_name=f"portfolio_summary_{datetime.now().strftime('%Y%m%d')}.csv",
+                mime="text/csv",
+                help="Download a summary report of all farms with key metrics"
+            )
+        
+        with col2:
+            # Create detailed farm rankings
+            farm_rankings = pd.DataFrame(farm_performance)
+            farm_rankings['avg_ndvi_rank'] = farm_rankings['avg_ndvi'].rank(ascending=False)
+            farm_rankings['volatility_rank'] = farm_rankings['volatility'].rank(ascending=True)  # Lower volatility = better rank
+            farm_rankings['peak_ndvi_rank'] = farm_rankings['peak_ndvi'].rank(ascending=False)
+            
+            rankings_csv = farm_rankings.to_csv(index=False)
+            st.download_button(
+                label="🏆 Download Farm Rankings",
+                data=rankings_csv,
+                file_name=f"farm_rankings_{datetime.now().strftime('%Y%m%d')}.csv",
+                mime="text/csv",
+                help="Download detailed farm rankings and performance metrics"
+            )
+    
+    # Footer with instructions
+    st.markdown("---")
+    st.markdown(f"""
+    **Dashboard Information:**
+    - Data processed from consolidated CSV format
+    - Analysis covers {len(st.session_state.get('farms_data', {}))} farms
+    - Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+    
+    **How to update data:**
+    1. Use the farm data consolidator script to create a new consolidated CSV
+    2. Upload the new file using the file uploader above
+    3. The dashboard will automatically refresh with new data
+    
+    **Need help?**
+    - Ensure your CSV has columns: farm_id, time, NDVI
+    - Use the consolidator script for proper formatting
+    - Check that time values are in Unix timestamp format or readable date strings
+    """)
+
+if __name__ == "__main__":
+    main()
