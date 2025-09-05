@@ -97,93 +97,17 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 @st.cache_data
-def generate_sample_data():
-    """Generate comprehensive sample data for demonstration"""
-    np.random.seed(42)
-    
-    # Create date range
-    start_date = datetime(2022, 1, 1)
-    end_date = datetime(2024, 12, 31)
-    dates = pd.date_range(start_date, end_date, freq='5D')
-    
-    # Farm configurations
-    farms = [
-        {'id': 'farm_001', 'name': 'Al-Madina North', 'base_ndvi': 0.72, 'variability': 0.15},
-        {'id': 'farm_002', 'name': 'Al-Madina South', 'base_ndvi': 0.68, 'variability': 0.18},
-        {'id': 'farm_003', 'name': 'Wadi Al-Furaat', 'base_ndvi': 0.75, 'variability': 0.12},
-        {'id': 'farm_004', 'name': 'Oasis Valley', 'base_ndvi': 0.65, 'variability': 0.20},
-        {'id': 'farm_005', 'name': 'Desert Edge', 'base_ndvi': 0.58, 'variability': 0.25}
-    ]
-    
-    all_data = []
-    
-    for farm in farms:
-        for date in dates:
-            # Add seasonal patterns (Saudi climate)
-            month = date.month
-            seasonal_factor = 1.0
-            
-            # Hot summer stress (June-September)
-            if month in [6, 7, 8, 9]:
-                seasonal_factor = 0.85 - (month - 6) * 0.05
-            # Good growing periods (Nov-April)
-            elif month in [11, 12, 1, 2, 3, 4]:
-                seasonal_factor = 1.15
-            # Transition periods
-            else:
-                seasonal_factor = 1.0
-            
-            # Base NDVI with seasonal adjustment
-            base_ndvi = farm['base_ndvi'] * seasonal_factor
-            
-            # Add random variation
-            ndvi = base_ndvi + np.random.normal(0, farm['variability'] * 0.3)
-            ndvi = np.clip(ndvi, 0.1, 0.95)  # Realistic NDVI range
-            
-            # Calculate related indices
-            ndwi = -0.3 - 0.5 * ndvi + np.random.normal(0, 0.1)
-            savi = ndvi * 1.5 + np.random.normal(0, 0.05)
-            
-            # Cloud coverage (random but realistic)
-            cloud_percent = np.random.exponential(8)  # Most days low cloud, occasional high
-            cloud_percent = np.clip(cloud_percent, 0, 95)
-            
-            # Calculate time features
-            day_of_year = date.timetuple().tm_yday
-            week_of_year = date.isocalendar()[1]
-            quarter = (month - 1) // 3 + 1
-            
-            # Season mapping for Saudi climate
-            if month in [12, 1, 2]:
-                season = 'Winter'
-            elif month in [3, 4, 5]:
-                season = 'Spring'
-            elif month in [6, 7, 8]:
-                season = 'Summer'
-            else:
-                season = 'Fall'
-            
-            all_data.append({
-                'time': int(date.timestamp() * 1000),  # Unix timestamp in milliseconds
-                'farm_id': farm['id'],
-                'farm_name': farm['name'],
-                'NDVI': round(ndvi, 6),
-                'NDWI': round(ndwi, 6),
-                'SAVI': round(savi, 6),
-                'year': date.year,
-                'month': date.month,
-                'day': date.day,
-                'day_of_year': day_of_year,
-                'week_of_year': week_of_year,
-                'quarter': quarter,
-                'season': season,
-                'cloud_percent': round(cloud_percent, 2)
-            })
-    
-    df = pd.DataFrame(all_data)
-    df['timestamp'] = pd.to_datetime(df['time'], unit='ms')
-    
-    return df
+def load_real_data(file_path):
+    """Load and prepare the actual farm data from the provided CSV file"""
+    try:
+        df = pd.read_csv(file_path)
+        # Convert the 'timestamp' column to datetime objects
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        return df
+    except FileNotFoundError:
+        st.error(f"Error: The file '{file_path}' was not found. Please make sure it is in the same directory as the script.")
+        return pd.DataFrame()
+
 
 class PalmFarmAnalytics:
     def __init__(self, df):
@@ -308,7 +232,10 @@ def main():
     
     # Load data
     with st.spinner("Loading farm data..."):
-        df = generate_sample_data()
+        # MODIFIED: Load real data from the specified CSV file
+        df = load_real_data("consolidated_historical_2015_2025.csv")
+        if df.empty:
+            return
         analytics = PalmFarmAnalytics(df)
     
     # Sidebar configuration
@@ -326,7 +253,8 @@ def main():
     )
     
     # Farm selection
-    all_farms = df['farm_id'].unique()
+    # The options will now be populated from your actual data
+    all_farms = sorted(df['farm_name'].unique())
     selected_farms = st.sidebar.multiselect(
         "Select farms:",
         options=all_farms,
@@ -340,10 +268,10 @@ def main():
         df_filtered = df[
             (df['timestamp'].dt.date >= start_date) & 
             (df['timestamp'].dt.date <= end_date) &
-            (df['farm_id'].isin(selected_farms))
+            (df['farm_name'].isin(selected_farms))
         ]
     else:
-        df_filtered = df[df['farm_id'].isin(selected_farms)]
+        df_filtered = df[df['farm_name'].isin(selected_farms)]
     
     if df_filtered.empty:
         st.error("No data available for the selected filters.")
@@ -388,7 +316,7 @@ def main():
         
         # Monthly aggregation for cleaner visualization
         monthly_data = df_filtered.groupby([
-            df_filtered['timestamp'].dt.to_period('M'), 'farm_id', 'farm_name'
+            df_filtered['timestamp'].dt.to_period('M'), 'farm_name'
         ])['NDVI'].mean().reset_index()
         monthly_data['timestamp'] = monthly_data['timestamp'].dt.to_timestamp()
         
@@ -703,15 +631,13 @@ def main():
         # Farm selection for detailed analysis
         selected_farm_trend = st.selectbox(
             "Select farm for trend analysis:",
-            options=df_filtered['farm_id'].unique(),
-            format_func=lambda x: df_filtered[df_filtered['farm_id']==x]['farm_name'].iloc[0]
+            options=df_filtered['farm_name'].unique()
         )
         
-        farm_trend_data = df_filtered[df_filtered['farm_id'] == selected_farm_trend].copy()
-        farm_name = farm_trend_data['farm_name'].iloc[0]
+        farm_trend_data = df_filtered[df_filtered['farm_name'] == selected_farm_trend].copy()
         
         # Time series decomposition
-        st.subheader(f"📊 Time Series Analysis: {farm_name}")
+        st.subheader(f"📊 Time Series Analysis: {selected_farm_trend}")
         
         # Monthly aggregation for trend analysis
         monthly_trend = farm_trend_data.groupby(farm_trend_data['timestamp'].dt.to_period('M')).agg({
@@ -835,7 +761,7 @@ def main():
             row=2, col=2
         )
         
-        fig_trend.update_layout(height=800, title_text=f"Comprehensive Trend Analysis: {farm_name}")
+        fig_trend.update_layout(height=800, title_text=f"Comprehensive Trend Analysis: {selected_farm_trend}")
         st.plotly_chart(fig_trend, use_container_width=True)
         
         # Yearly comparison
@@ -894,9 +820,13 @@ def main():
             fig_anomaly = go.Figure()
             
             # Normal data points (sample for performance)
-            normal_sample = df_filtered[~df_filtered.index.isin(anomalies_df.index)].sample(
-                min(1000, len(df_filtered) // 10)
-            )
+            if len(df_filtered) > 1000:
+                normal_sample = df_filtered[~df_filtered.index.isin(anomalies_df.index)].sample(
+                    min(1000, len(df_filtered) // 10)
+                )
+            else:
+                normal_sample = df_filtered[~df_filtered.index.isin(anomalies_df.index)]
+            
             
             fig_anomaly.add_trace(go.Scatter(
                 x=normal_sample['timestamp'],
@@ -1046,14 +976,13 @@ def main():
         with col1:
             view_farm = st.selectbox(
                 "Select farm:",
-                options=['All'] + list(df_filtered['farm_id'].unique()),
-                format_func=lambda x: 'All Farms' if x == 'All' else df_filtered[df_filtered['farm_id']==x]['farm_name'].iloc[0] if x != 'All' else x
+                options=['All'] + list(df_filtered['farm_name'].unique())
             )
         
         with col2:
             view_year = st.selectbox(
                 "Select year:",
-                options=['All'] + sorted(df_filtered['year'].unique())
+                options=['All'] + sorted(list(df_filtered['year'].unique()))
             )
         
         with col3:
@@ -1065,7 +994,7 @@ def main():
         # Apply filters
         view_data = df_filtered.copy()
         if view_farm != 'All':
-            view_data = view_data[view_data['farm_id'] == view_farm]
+            view_data = view_data[view_data['farm_name'] == view_farm]
         if view_year != 'All':
             view_data = view_data[view_data['year'] == view_year]
         if view_season != 'All':
