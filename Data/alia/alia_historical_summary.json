@@ -1,0 +1,12 @@
+{
+  "farm_id": "alia",
+  "total_records": 468,
+  "date_range": "2018-05-27 08:03:25.306000 to 2025-05-20 08:03:41.934000",
+  "satellites_used": [
+    "Sentinel2",
+    NaN
+  ],
+  "avg_ndvi": 0.14313629494436303,
+  "data_quality": 5.524165361111111,
+  "update_timestamp": "2025-09-05T07:12:51.720887"
+}
