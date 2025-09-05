@@ -1,593 +1,645 @@
-import streamlit as st
+import ee
+import geemap
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import os
-import calendar
-import numpy as np
-from datetime import datetime
-import io
-import zipfile
+import json
+from google.colab import drive
+from ipywidgets import Button, Layout, VBox, HBox, Text, Output, Dropdown, IntSlider, Checkbox
+from IPython.display import display, clear_output
+from datetime import datetime, timedelta
+import time
 
-# Configure Streamlit page
-st.set_page_config(
-    page_title="Palm Farm Analytics Dashboard",
-    page_icon="🌴",
-    layout="wide",
-    initial_sidebar_state="expanded"
+# Mount your Google Drive
+drive.mount('/content/drive')
+
+# Authenticate and initialize Earth Engine
+try:
+    ee.Initialize(project='dotted-medley-467420-k3')
+except Exception as e:
+    ee.Authenticate()
+    ee.Initialize(project='dotted-medley-467420-k3')
+
+# Set up file paths and data structures
+gdrive_folder = '/content/drive/MyDrive/palm/data/'
+farm_list_csv = os.path.join(gdrive_folder, 'my_farm_list.csv')
+
+if not os.path.exists(gdrive_folder):
+    os.makedirs(gdrive_folder)
+
+farm_collection = []
+
+# Enhanced configuration widgets
+print("🌴 Enhanced Palm Farm Data Collection System")
+print("=" * 50)
+
+# Create Interactive Map and Widgets
+m = geemap.Map(center=[24.45, 39.62], zoom=12, layout=Layout(height='500px'))
+m.add_basemap('SATELLITE')
+
+# Configuration widgets
+farm_name_input = Text(value='', placeholder='Enter farm name here', description='Farm Name:', disabled=False)
+
+date_start_input = Text(value='2018-01-01', placeholder='YYYY-MM-DD', description='Start Date:', disabled=False)
+date_end_input = Text(value='2024-12-31', placeholder='YYYY-MM-DD', description='End Date:', disabled=False)
+
+cloud_threshold = IntSlider(value=20, min=5, max=50, step=5, description='Max Cloud %:', disabled=False)
+
+collection_frequency = Dropdown(
+    options=[('All Available', 'all'), ('Monthly', 'monthly'), ('Weekly', 'weekly')],
+    value='all',
+    description='Frequency:'
 )
 
-# Custom CSS
-st.markdown("""
-<style>
-    .main-header {
-        font-size: 2.5rem;
-        color: #2E8B57;
-        text-align: center;
-        margin-bottom: 2rem;
-    }
-    .metric-container {
-        background-color: #f0f8f0;
-        padding: 1rem;
-        border-radius: 10px;
-        border-left: 5px solid #2E8B57;
-        margin: 0.5rem 0;
-    }
-    .upload-section {
-        background-color: #f8f9fa;
-        padding: 2rem;
-        border-radius: 10px;
-        margin: 1rem 0;
-        border: 2px dashed #2E8B57;
-    }
-</style>
-""", unsafe_allow_html=True)
+include_quality_bands = Checkbox(value=True, description='Include Quality Bands')
+include_weather_data = Checkbox(value=False, description='Include Weather Data (slower)')
 
-def process_uploaded_files(uploaded_files):
-    """Process uploaded CSV files"""
-    all_farms_data = {}
-    farm_performance = []
+# Buttons
+add_button = Button(description="Add Farm to List", button_style='primary')
+enhanced_collection_button = Button(description="🚀 Enhanced Collection for ML", button_style='success')
+quick_collection_button = Button(description="⚡ Quick Collection", button_style='info')
+output_widget = Output()
+
+def calculate_enhanced_indices(image):
+    """Calculate comprehensive vegetation and soil indices"""
     
-    if not uploaded_files:
-        return {}, []
+    # Basic vegetation indices
+    ndvi = image.normalizedDifference(['B8', 'B4']).rename('NDVI')
+    ndwi = image.normalizedDifference(['B3', 'B8']).rename('NDWI')
     
-    progress_bar = st.progress(0)
+    # SAVI (Soil Adjusted Vegetation Index) - better for arid regions
+    savi = image.expression(
+        '1.5 * (NIR - RED) / (NIR + RED + 0.5)', 
+        {'NIR': image.select('B8'), 'RED': image.select('B4')}
+    ).rename('SAVI')
     
-    for i, uploaded_file in enumerate(uploaded_files):
-        progress_bar.progress((i + 1) / len(uploaded_files))
+    # EVI (Enhanced Vegetation Index) - reduces atmospheric interference
+    evi = image.expression(
+        '2.5 * (NIR - RED) / (NIR + 6 * RED - 7.5 * BLUE + 1)',
+        {
+            'NIR': image.select('B8'),
+            'RED': image.select('B4'),
+            'BLUE': image.select('B2')
+        }
+    ).rename('EVI')
+    
+    # MSI (Moisture Stress Index)
+    msi = image.normalizedDifference(['B11', 'B8']).rename('MSI')
+    
+    # Chlorophyll Red Edge
+    chl_red_edge = image.normalizedDifference(['B7', 'B5']).rename('CHL_RED_EDGE')
+    
+    # BSI (Bare Soil Index)
+    bsi = image.expression(
+        '(RED + SWIR1) - (NIR + BLUE) / (RED + SWIR1) + (NIR + BLUE)',
+        {
+            'RED': image.select('B4'),
+            'SWIR1': image.select('B11'),
+            'NIR': image.select('B8'),
+            'BLUE': image.select('B2')
+        }
+    ).rename('BSI')
+    
+    return image.addBands([ndvi, ndwi, savi, evi, msi, chl_red_edge, bsi])
+
+def enhanced_data_collection(farm_aoi, farm_name, start_date, end_date, cloud_thresh, freq, include_quality):
+    """
+    Enhanced data collection with comprehensive indices and quality control
+    """
+    print(f"  🔍 Collecting enhanced satellite data for {farm_name}...")
+    print(f"  📅 Date range: {start_date} to {end_date}")
+    print(f"  ☁️ Cloud threshold: {cloud_thresh}%")
+    
+    try:
+        # Build collection with filters
+        collection = (ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
+                      .filterBounds(farm_aoi)
+                      .filterDate(start_date, end_date)
+                      .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', cloud_thresh))
+                      .sort('system:time_start'))
         
-        # Extract farm name from filename
-        filename = uploaded_file.name
-        if filename.endswith('_indices_timeseries.csv'):
-            farm_name = filename.replace('_indices_timeseries.csv', '')
-        else:
-            farm_name = filename.replace('.csv', '')
+        total_images = collection.size().getInfo()
+        print(f"  📊 Found {total_images} images matching criteria")
         
+        if total_images == 0:
+            print(f"  ❌ No images found for {farm_name}")
+            return pd.DataFrame()
+        
+        # Apply frequency filter
+        if freq == 'monthly':
+            collection = collection.filter(ee.Filter.dayOfMonth().eq(1))
+        elif freq == 'weekly':
+            collection = collection.filter(ee.Filter.dayOfWeek().eq(1))
+        
+        filtered_count = collection.size().getInfo()
+        print(f"  🔄 After frequency filter: {filtered_count} images")
+        
+        if filtered_count == 0:
+            print(f"  ⚠️ No images after frequency filtering for {farm_name}")
+            return pd.DataFrame()
+        
+        # Calculate indices
+        indices_collection = collection.map(calculate_enhanced_indices)
+        
+        def get_comprehensive_stats(image):
+            """Extract comprehensive statistics for each image"""
+            
+            # Mean values
+            mean_dict = image.reduceRegion(
+                reducer=ee.Reducer.mean(), 
+                geometry=farm_aoi, 
+                scale=20, 
+                maxPixels=1e8
+            )
+            
+            # Standard deviation for quality assessment
+            std_dict = image.reduceRegion(
+                reducer=ee.Reducer.stdDev(), 
+                geometry=farm_aoi, 
+                scale=20, 
+                maxPixels=1e8
+            )
+            
+            # Date information
+            date = ee.Date(image.get('system:time_start'))
+            
+            # Base properties
+            properties = {
+                'time': image.get('system:time_start'),
+                'year': date.get('year'),
+                'month': date.get('month'),
+                'day': date.get('day'),
+                'day_of_year': date.getRelative('day', 'year'),
+                'week_of_year': date.getRelative('week', 'year'),
+                'quarter': ee.Number(date.get('month')).subtract(1).divide(3).floor().add(1),
+                
+                # Vegetation indices
+                'NDVI': mean_dict.get('NDVI'),
+                'NDWI': mean_dict.get('NDWI'),
+                'SAVI': mean_dict.get('SAVI'),
+                'EVI': mean_dict.get('EVI'),
+                'MSI': mean_dict.get('MSI'),
+                'CHL_RED_EDGE': mean_dict.get('CHL_RED_EDGE'),
+                'BSI': mean_dict.get('BSI'),
+                
+                # Quality metrics
+                'cloud_percent': image.get('CLOUDY_PIXEL_PERCENTAGE'),
+                'NDVI_std': std_dict.get('NDVI')
+            }
+            
+            # Add quality bands if requested
+            if include_quality:
+                properties.update({
+                    'NDWI_std': std_dict.get('NDWI'),
+                    'SAVI_std': std_dict.get('SAVI'),
+                    'data_quality_score': ee.Number(100).subtract(image.get('CLOUDY_PIXEL_PERCENTAGE'))
+                })
+            
+            return ee.Feature(None, properties)
+        
+        # Process all images
+        mean_fc = ee.FeatureCollection(indices_collection.map(get_comprehensive_stats))
+        
+        # Filter for valid data
+        mean_fc = mean_fc.filter(ee.Filter.notNull(['NDVI', 'NDWI', 'SAVI']))
+        
+        valid_count = mean_fc.size().getInfo()
+        print(f"  ✅ Valid observations: {valid_count}")
+        
+        if valid_count == 0:
+            print(f"  ❌ No valid observations for {farm_name}")
+            return pd.DataFrame()
+        
+        # Convert to pandas with robust error handling
         try:
-            # Read the CSV file
-            df = pd.read_csv(uploaded_file)
+            df = geemap.ee_to_df(mean_fc)
+            print(f"  🔄 Successfully converted to DataFrame")
+        except Exception as e:
+            print(f"  ⚠️ geemap conversion failed: {e}")
+            print(f"  🔄 Trying alternative conversion...")
             
-            # Handle different time formats
-            if 'time' in df.columns:
-                if df['time'].dtype == 'object':
-                    try:
-                        df['time'] = pd.to_datetime(df['time'])
-                    except:
-                        df['time'] = pd.to_datetime(df['time'], unit='ms')
+            try:
+                # Alternative conversion method
+                data_list = mean_fc.getInfo()
+                
+                if 'features' in data_list and len(data_list['features']) > 0:
+                    data_rows = []
+                    for feature in data_list['features']:
+                        if feature['properties']:
+                            data_rows.append(feature['properties'])
+                    
+                    df = pd.DataFrame(data_rows)
+                    print(f"  ✅ Alternative conversion successful")
                 else:
-                    df['time'] = pd.to_datetime(df['time'], unit='ms')
-                df = df.set_index('time')
+                    print(f"  ❌ No features in collection")
+                    return pd.DataFrame()
+                    
+            except Exception as e2:
+                print(f"  ❌ Alternative conversion failed: {e2}")
+                return pd.DataFrame()
+        
+        if not df.empty:
+            # Enhanced data processing
+            df['timestamp'] = pd.to_datetime(df['time'], unit='ms')
+            df = df.sort_values('timestamp')
             
-            # Ensure NDVI column exists
-            if 'NDVI' not in df.columns:
-                st.warning(f"No NDVI column found in {filename}. Skipping...")
+            # Add season mapping (Saudi climate)
+            df['season'] = df['month'].map({
+                12: 'Winter', 1: 'Winter', 2: 'Winter',
+                3: 'Spring', 4: 'Spring', 5: 'Spring',
+                6: 'Summer', 7: 'Summer', 8: 'Summer',
+                9: 'Fall', 10: 'Fall', 11: 'Fall'
+            })
+            
+            # Calculate additional temporal features
+            df['is_growing_season'] = df['month'].isin([3, 4, 5, 10, 11, 12]).astype(int)
+            df['heat_stress_period'] = df['month'].isin([6, 7, 8, 9]).astype(int)
+            
+            # Data quality indicators
+            df['high_quality'] = (df['cloud_percent'] < 10).astype(int)
+            df['medium_quality'] = ((df['cloud_percent'] >= 10) & (df['cloud_percent'] < 20)).astype(int)
+            
+            print(f"  🎯 Final dataset: {len(df)} observations")
+            print(f"  📅 Date range: {df['timestamp'].min().strftime('%Y-%m-%d')} to {df['timestamp'].max().strftime('%Y-%m-%d')}")
+            print(f"  📊 Average NDVI: {df['NDVI'].mean():.3f}")
+            print(f"  🌟 High quality observations: {df['high_quality'].sum()} ({df['high_quality'].mean()*100:.1f}%)")
+            
+        return df
+        
+    except Exception as e:
+        print(f"  ❌ Error in enhanced collection: {e}")
+        import traceback
+        print(f"  🔍 Traceback: {traceback.format_exc()}")
+        return pd.DataFrame()
+
+def process_enhanced_collection(b):
+    """Enhanced processing with comprehensive data collection"""
+    with output_widget:
+        clear_output(wait=True)
+        
+        if not farm_collection:
+            print("❌ No farms added to the list yet.")
+            return
+        
+        print(f"🚀 Starting Enhanced Data Collection")
+        print(f"📊 Processing {len(farm_collection)} farms")
+        print("=" * 50)
+        
+        # Get configuration
+        start_date = date_start_input.value
+        end_date = date_end_input.value
+        cloud_thresh = cloud_threshold.value
+        freq = collection_frequency.value
+        include_quality = include_quality_bands.value
+        
+        print(f"⚙️ Configuration:")
+        print(f"  📅 Date range: {start_date} to {end_date}")
+        print(f"  ☁️ Cloud threshold: {cloud_thresh}%")
+        print(f"  🔄 Collection frequency: {freq}")
+        print(f"  📈 Quality bands: {include_quality}")
+        print()
+        
+        all_farms_data = []
+        successful_farms = []
+        failed_farms = []
+        
+        for i, farm in enumerate(farm_collection, 1):
+            farm_name = farm['name']
+            
+            print(f"🏗️ Processing Farm {i}/{len(farm_collection)}: {farm_name}")
+            
+            try:
+                # Handle geometry
+                if 'geojson' in farm:
+                    geojson = farm['geojson']
+                    if isinstance(geojson, dict):
+                        if 'geometry' in geojson:
+                            farm_aoi = ee.Geometry(geojson['geometry'])
+                        else:
+                            farm_aoi = ee.Geometry(geojson)
+                    else:
+                        farm_aoi = ee.Geometry(geojson)
+                else:
+                    print(f"  ❌ No geometry found for {farm_name}")
+                    failed_farms.append(farm_name)
+                    continue
+                
+                # Create farm folder
+                farm_folder = os.path.join(gdrive_folder, farm_name)
+                if not os.path.exists(farm_folder):
+                    os.makedirs(farm_folder)
+                
+                # Collect data
+                df = enhanced_data_collection(
+                    farm_aoi, farm_name, start_date, end_date, 
+                    cloud_thresh, freq, include_quality
+                )
+                
+                if not df.empty:
+                    # Add farm metadata
+                    df['farm_id'] = farm_name
+                    df['farm_name'] = farm_name
+                    df['collection_date'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    
+                    # Save individual farm data
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    csv_filename = os.path.join(farm_folder, f'{farm_name}_enhanced_{timestamp}.csv')
+                    df.to_csv(csv_filename, index=False)
+                    print(f"  💾 Saved: {csv_filename}")
+                    
+                    # Add to consolidated dataset
+                    all_farms_data.append(df)
+                    successful_farms.append(farm_name)
+                    
+                    # Generate and save summary statistics
+                    summary_stats = {
+                        'farm_name': farm_name,
+                        'collection_date': datetime.now().isoformat(),
+                        'total_observations': len(df),
+                        'date_range_start': df['timestamp'].min().isoformat(),
+                        'date_range_end': df['timestamp'].max().isoformat(),
+                        'years_covered': df['year'].nunique(),
+                        'avg_ndvi': float(df['NDVI'].mean()),
+                        'avg_ndwi': float(df['NDWI'].mean()),
+                        'avg_savi': float(df['SAVI'].mean()),
+                        'ndvi_range': [float(df['NDVI'].min()), float(df['NDVI'].max())],
+                        'data_quality': {
+                            'avg_cloud_percent': float(df['cloud_percent'].mean()),
+                            'high_quality_obs': int(df.get('high_quality', pd.Series([0])).sum()),
+                            'quality_score': float((1 - df['cloud_percent'].mean()/100) * 100)
+                        },
+                        'seasonal_stats': {
+                            'spring_avg_ndvi': float(df[df['season'] == 'Spring']['NDVI'].mean()),
+                            'summer_avg_ndvi': float(df[df['season'] == 'Summer']['NDVI'].mean()),
+                            'fall_avg_ndvi': float(df[df['season'] == 'Fall']['NDVI'].mean()),
+                            'winter_avg_ndvi': float(df[df['season'] == 'Winter']['NDVI'].mean())
+                        }
+                    }
+                    
+                    # Save summary
+                    summary_filename = os.path.join(farm_folder, f'{farm_name}_summary_{timestamp}.json')
+                    with open(summary_filename, 'w') as f:
+                        json.dump(summary_stats, f, indent=2, default=str)
+                    
+                    print(f"  📊 Summary saved: {summary_filename}")
+                    
+                else:
+                    print(f"  ❌ No data collected for {farm_name}")
+                    failed_farms.append(farm_name)
+                
+                # Add small delay to avoid rate limiting
+                time.sleep(2)
+                    
+            except Exception as e:
+                print(f"  ❌ Error processing {farm_name}: {e}")
+                failed_farms.append(farm_name)
                 continue
+        
+        print("\n" + "="*50)
+        print("📋 COLLECTION SUMMARY")
+        print("="*50)
+        
+        # Create consolidated dataset
+        if all_farms_data:
+            print(f"✅ Successfully processed: {len(successful_farms)} farms")
+            print(f"❌ Failed: {len(failed_farms)} farms")
             
-            # Calculate KPIs
-            peak_ndvi = df['NDVI'].max()
-            avg_ndvi = df['NDVI'].mean()
-            min_ndvi = df['NDVI'].min()
-            std_ndvi = df['NDVI'].std()
+            if failed_farms:
+                print(f"   Failed farms: {', '.join(failed_farms)}")
             
-            # Monthly aggregation
-            df_monthly = df.resample('M').mean()
+            consolidated_df = pd.concat(all_farms_data, ignore_index=True)
+            consolidated_df = consolidated_df.sort_values(['farm_id', 'timestamp'])
             
-            all_farms_data[farm_name] = {
-                'raw_data': df,
-                'monthly_data': df_monthly,
-                'kpis': {
-                    'peak_ndvi': peak_ndvi,
-                    'avg_ndvi': avg_ndvi,
-                    'min_ndvi': min_ndvi,
-                    'std_ndvi': std_ndvi,
-                    'data_points': len(df)
+            # Create timestamp for files
+            file_timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            
+            # Save consolidated dataset
+            consolidated_filename = os.path.join(gdrive_folder, f'consolidated_enhanced_farm_data_{file_timestamp}.csv')
+            consolidated_df.to_csv(consolidated_filename, index=False)
+            
+            # Create ML-ready dataset
+            ml_ready_df = consolidated_df.copy()
+            ml_ready_df['time'] = ml_ready_df['timestamp'].astype('int64') // 10**6
+            
+            # Organize columns for ML pipeline
+            id_cols = ['time', 'timestamp', 'farm_id', 'farm_name']
+            feature_cols = ['NDVI', 'NDWI', 'SAVI', 'EVI', 'MSI', 'CHL_RED_EDGE', 'BSI']
+            temporal_cols = ['year', 'month', 'day', 'day_of_year', 'week_of_year', 'quarter', 'season']
+            quality_cols = ['cloud_percent', 'NDVI_std', 'high_quality', 'data_quality_score']
+            derived_cols = ['is_growing_season', 'heat_stress_period']
+            
+            # Include only existing columns
+            available_cols = []
+            for col_group in [id_cols, feature_cols, temporal_cols, quality_cols, derived_cols]:
+                available_cols.extend([col for col in col_group if col in ml_ready_df.columns])
+            
+            ml_dataset = ml_ready_df[available_cols]
+            ml_filename = os.path.join(gdrive_folder, f'ml_ready_farm_data_{file_timestamp}.csv')
+            ml_dataset.to_csv(ml_filename, index=False)
+            
+            # Generate comprehensive summary report
+            total_obs = len(consolidated_df)
+            date_range = f"{consolidated_df['timestamp'].min().strftime('%Y-%m-%d')} to {consolidated_df['timestamp'].max().strftime('%Y-%m-%d')}"
+            farms_count = consolidated_df['farm_id'].nunique()
+            avg_ndvi = consolidated_df['NDVI'].mean()
+            
+            print(f"\n📊 CONSOLIDATED DATASET STATISTICS:")
+            print(f"   Total observations: {total_obs:,}")
+            print(f"   Farms included: {farms_count}")
+            print(f"   Date range: {date_range}")
+            print(f"   Average NDVI: {avg_ndvi:.3f}")
+            print(f"   Features available: {len([col for col in feature_cols if col in consolidated_df.columns])}")
+            
+            # Quality statistics
+            if 'cloud_percent' in consolidated_df.columns:
+                avg_cloud = consolidated_df['cloud_percent'].mean()
+                high_quality_pct = consolidated_df.get('high_quality', pd.Series([0])).mean() * 100
+                print(f"   Average cloud coverage: {avg_cloud:.1f}%")
+                print(f"   High quality observations: {high_quality_pct:.1f}%")
+            
+            print(f"\n💾 FILES CREATED:")
+            print(f"   📄 Consolidated dataset: {os.path.basename(consolidated_filename)}")
+            print(f"   🤖 ML-ready dataset: {os.path.basename(ml_filename)}")
+            print(f"   📁 Individual farm data: [farm_name]_enhanced_[timestamp].csv")
+            print(f"   📋 Farm summaries: [farm_name]_summary_[timestamp].json")
+            
+            # Create metadata file
+            metadata = {
+                'collection_info': {
+                    'collection_date': datetime.now().isoformat(),
+                    'script_version': 'enhanced_v2.0',
+                    'total_farms_processed': len(farm_collection),
+                    'successful_farms': len(successful_farms),
+                    'failed_farms': len(failed_farms),
+                    'configuration': {
+                        'start_date': start_date,
+                        'end_date': end_date,
+                        'cloud_threshold': cloud_thresh,
+                        'frequency': freq,
+                        'include_quality_bands': include_quality
+                    }
+                },
+                'dataset_info': {
+                    'total_observations': total_obs,
+                    'farms_count': farms_count,
+                    'date_range': date_range,
+                    'features_available': len([col for col in feature_cols if col in consolidated_df.columns]),
+                    'files_created': {
+                        'consolidated': os.path.basename(consolidated_filename),
+                        'ml_ready': os.path.basename(ml_filename)
+                    }
+                },
+                'quality_metrics': {
+                    'average_ndvi': float(avg_ndvi),
+                    'average_cloud_percent': float(consolidated_df.get('cloud_percent', pd.Series([0])).mean()),
+                    'high_quality_percentage': float(consolidated_df.get('high_quality', pd.Series([0])).mean() * 100)
                 }
             }
             
-            farm_performance.append({
-                'farm_name': farm_name,
-                'avg_ndvi': avg_ndvi,
-                'peak_ndvi': peak_ndvi,
-                'min_ndvi': min_ndvi,
-                'volatility': std_ndvi
-            })
+            metadata_filename = os.path.join(gdrive_folder, f'collection_metadata_{file_timestamp}.json')
+            with open(metadata_filename, 'w') as f:
+                json.dump(metadata, f, indent=2, default=str)
             
-        except Exception as e:
-            st.warning(f"Error processing {filename}: {e}")
-    
-    progress_bar.empty()
-    return all_farms_data, farm_performance
-
-def create_seasonal_analysis(all_farms_data):
-    """Create seasonal analysis"""
-    all_monthly_data = []
-    
-    for farm_name, data in all_farms_data.items():
-        monthly_df = data['monthly_data'].copy()
-        monthly_df['farm'] = farm_name
-        monthly_df['month'] = monthly_df.index.month
-        all_monthly_data.append(monthly_df)
-    
-    if all_monthly_data:
-        combined_df = pd.concat(all_monthly_data)
-        seasonal_avg = combined_df.groupby('month')['NDVI'].mean()
-        return seasonal_avg, combined_df
-    return None, None
-
-def create_farm_timeline(farm_data, farm_name):
-    """Create individual farm timeline"""
-    monthly_data = farm_data['monthly_data']
-    
-    fig = make_subplots(
-        rows=2, cols=1,
-        subplot_titles=('NDVI Timeline', 'NDVI Distribution by Month'),
-        vertical_spacing=0.15,
-        row_heights=[0.7, 0.3]
-    )
-    
-    # Main timeline
-    fig.add_trace(
-        go.Scatter(
-            x=monthly_data.index,
-            y=monthly_data['NDVI'],
-            mode='lines+markers',
-            name='NDVI',
-            line=dict(width=2, color='#2E8B57'),
-            marker=dict(size=6)
-        ),
-        row=1, col=1
-    )
-    
-    # Monthly statistics
-    monthly_stats = monthly_data.copy()
-    monthly_stats['month'] = monthly_stats.index.month
-    monthly_avg = monthly_stats.groupby('month')['NDVI'].mean()
-    
-    fig.add_trace(
-        go.Bar(
-            x=[calendar.month_abbr[i] for i in monthly_avg.index],
-            y=monthly_avg.values,
-            name='Monthly Average',
-            marker_color='#90EE90',
-            showlegend=False
-        ),
-        row=2, col=1
-    )
-    
-    fig.update_layout(
-        height=600,
-        title_text=f"Detailed Analysis: {farm_name}",
-        showlegend=True
-    )
-    
-    fig.update_xaxes(title_text="Month", row=2, col=1)
-    fig.update_yaxes(title_text="NDVI", row=1, col=1)
-    fig.update_yaxes(title_text="Average NDVI", row=2, col=1)
-    
-    return fig
-
-def main():
-    st.markdown('<h1 class="main-header">🌴 Palm Farm Analytics Dashboard</h1>', 
-                unsafe_allow_html=True)
-    
-    # File Upload Section
-    st.markdown('<div class="upload-section">', unsafe_allow_html=True)
-    st.header("📁 Upload Your Farm Data")
-    st.markdown("""
-    **Instructions:**
-    1. Upload your CSV files containing farm time-series data
-    2. Files should have columns: 'time' and 'NDVI'
-    3. You can upload multiple files at once
-    4. Supported formats: CSV files
-    """)
-    
-    uploaded_files = st.file_uploader(
-        "Choose CSV files",
-        type=['csv'],
-        accept_multiple_files=True,
-        help="Upload your farm time-series data files. Each file should contain 'time' and 'NDVI' columns."
-    )
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Process uploaded files
-    if uploaded_files:
-        with st.spinner("Processing uploaded files..."):
-            all_farms_data, farm_performance = process_uploaded_files(uploaded_files)
+            print(f"   📋 Metadata: {os.path.basename(metadata_filename)}")
+            
+        else:
+            print("❌ No data collected from any farms")
+            print("Check farm geometries and date ranges")
         
-        if not all_farms_data:
-            st.error("No valid data found in uploaded files. Please check your CSV format.")
-            st.markdown("""
-            **Expected CSV format:**
-            ```
-            time,NDVI
-            1609459200000,0.75
-            1609545600000,0.72
-            ...
-            ```
-            """)
+        print(f"\n🎉 Enhanced collection completed!")
+        print(f"📁 Check Google Drive folder: {gdrive_folder}")
+
+def quick_collection_process(b):
+    """Quick collection with basic indices for fast testing"""
+    with output_widget:
+        clear_output(wait=True)
+        
+        if not farm_collection:
+            print("❌ No farms added to the list yet.")
             return
         
-        # Store data in session state
-        st.session_state.farms_data = all_farms_data
-        st.session_state.farm_performance = farm_performance
+        print(f"⚡ Starting Quick Data Collection")
+        print(f"📊 Processing {len(farm_collection)} farms")
+        print("=" * 40)
         
-        st.success(f"✅ Successfully processed {len(all_farms_data)} farms!")
-    
-    # Check if data exists
-    if 'farms_data' not in st.session_state or not st.session_state.farms_data:
-        st.info("👆 Please upload your farm data files to get started")
-        
-        # Show sample data format
-        st.subheader("📋 Sample Data Format")
-        sample_data = pd.DataFrame({
-            'time': pd.date_range('2023-01-01', periods=12, freq='M'),
-            'NDVI': np.random.uniform(0.3, 0.8, 12)
-        })
-        sample_data['time'] = sample_data['time'].astype(str)
-        st.dataframe(sample_data)
-        return
-    
-    all_farms_data = st.session_state.farms_data
-    farm_performance = st.session_state.farm_performance
-    
-    # Create tabs for different analyses
-    tab1, tab2, tab3, tab4 = st.tabs(["📊 Portfolio Overview", "📈 Farm Comparison", "📅 Seasonal Analysis", "🔍 Individual Farm Details"])
-    
-    with tab1:
-        st.header("Portfolio Performance Overview")
-        
-        if farm_performance:
-            df_perf = pd.DataFrame(farm_performance)
+        for i, farm in enumerate(farm_collection, 1):
+            farm_name = farm['name']
+            print(f"🏗️ Quick processing {i}/{len(farm_collection)}: {farm_name}")
             
-            # Key metrics
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                st.metric("Total Farms", len(df_perf))
-            
-            with col2:
-                st.metric("Portfolio Avg NDVI", f"{df_perf['avg_ndvi'].mean():.3f}")
-            
-            with col3:
-                best_farm = df_perf.loc[df_perf['avg_ndvi'].idxmax(), 'farm_name']
-                best_ndvi = df_perf['avg_ndvi'].max()
-                st.metric("Best Performing Farm", best_farm, f"{best_ndvi:.3f}")
-            
-            with col4:
-                most_stable = df_perf.loc[df_perf['volatility'].idxmin(), 'farm_name']
-                stability = df_perf['volatility'].min()
-                st.metric("Most Stable Farm", most_stable, f"{stability:.3f}")
-            
-            # Charts
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                fig_hist = px.histogram(
-                    df_perf, 
-                    x='avg_ndvi', 
-                    title="Distribution of Average NDVI Across Farms",
-                    color_discrete_sequence=['#2E8B57'],
-                    nbins=15
-                )
-                fig_hist.update_layout(showlegend=False)
-                st.plotly_chart(fig_hist, use_container_width=True)
-            
-            with col2:
-                fig_scatter = px.scatter(
-                    df_perf, 
-                    x='avg_ndvi', 
-                    y='volatility',
-                    size='peak_ndvi',
-                    hover_name='farm_name',
-                    title="Risk vs Return Analysis",
-                    labels={'avg_ndvi': 'Average NDVI (Performance)', 'volatility': 'Volatility (Risk)'},
-                    color='avg_ndvi',
-                    color_continuous_scale='Greens'
-                )
-                st.plotly_chart(fig_scatter, use_container_width=True)
-            
-            # Portfolio statistics
-            st.subheader("📊 Portfolio Statistics")
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                st.write("**Performance Quartiles**")
-                quartiles = df_perf['avg_ndvi'].quantile([0.25, 0.5, 0.75])
-                st.write(f"Q1 (25%): {quartiles[0.25]:.3f}")
-                st.write(f"Median: {quartiles[0.5]:.3f}")
-                st.write(f"Q3 (75%): {quartiles[0.75]:.3f}")
-            
-            with col2:
-                st.write("**Risk Analysis**")
-                high_risk = df_perf[df_perf['volatility'] > df_perf['volatility'].quantile(0.75)]
-                st.write(f"High Risk Farms: {len(high_risk)}")
-                if len(high_risk) > 0:
-                    st.write("Farms needing attention:")
-                    for farm in high_risk['farm_name'].head(3):
-                        st.write(f"• {farm}")
-            
-            with col3:
-                st.write("**Recommendations**")
-                underperformers = df_perf[df_perf['avg_ndvi'] < df_perf['avg_ndvi'].quantile(0.25)]
-                st.write(f"Underperforming: {len(underperformers)} farms")
-                if len(underperformers) > 0:
-                    st.write("Focus improvement on:")
-                    for farm in underperformers['farm_name'].head(3):
-                        st.write(f"• {farm}")
-    
-    with tab2:
-        st.header("Farm Performance Comparison")
-        
-        if farm_performance:
-            df_perf = pd.DataFrame(farm_performance)
-            
-            # Sorting options
-            sort_by = st.selectbox("Sort farms by:", 
-                                  ["Average NDVI", "Peak NDVI", "Volatility", "Farm Name"])
-            
-            if sort_by == "Average NDVI":
-                df_sorted = df_perf.sort_values('avg_ndvi', ascending=False)
-            elif sort_by == "Peak NDVI":
-                df_sorted = df_perf.sort_values('peak_ndvi', ascending=False)
-            elif sort_by == "Volatility":
-                df_sorted = df_perf.sort_values('volatility', ascending=True)
-            else:
-                df_sorted = df_perf.sort_values('farm_name')
-            
-            # Horizontal bar chart
-            fig_comparison = px.bar(
-                df_sorted,
-                y='farm_name',
-                x='avg_ndvi',
-                orientation='h',
-                title="Farm Performance Ranking",
-                color='avg_ndvi',
-                color_continuous_scale='RdYlGn',
-                text='avg_ndvi'
-            )
-            fig_comparison.update_traces(texttemplate='%{text:.3f}', textposition='outside')
-            fig_comparison.update_layout(height=max(400, len(df_perf) * 25))
-            st.plotly_chart(fig_comparison, use_container_width=True)
-            
-            # Performance tables
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.subheader("🏆 Top Performers")
-                top_farms = df_perf.nlargest(5, 'avg_ndvi')[['farm_name', 'avg_ndvi', 'peak_ndvi']]
-                top_farms.columns = ['Farm Name', 'Avg NDVI', 'Peak NDVI']
-                st.dataframe(top_farms.round(3), hide_index=True)
-            
-            with col2:
-                st.subheader("⚠️ Needs Attention")
-                bottom_farms = df_perf.nsmallest(5, 'avg_ndvi')[['farm_name', 'avg_ndvi', 'min_ndvi']]
-                bottom_farms.columns = ['Farm Name', 'Avg NDVI', 'Min NDVI']
-                st.dataframe(bottom_farms.round(3), hide_index=True)
-            
-            # Detailed metrics table
-            st.subheader("📋 Complete Farm Metrics")
-            detailed_df = df_perf.copy()
-            detailed_df.columns = ['Farm Name', 'Average NDVI', 'Peak NDVI', 'Minimum NDVI', 'Volatility']
-            st.dataframe(detailed_df.round(3), use_container_width=True)
-    
-    with tab3:
-        st.header("Seasonal Analysis")
-        
-        seasonal_avg, combined_df = create_seasonal_analysis(all_farms_data)
-        
-        if seasonal_avg is not None:
-            # Main seasonal chart
-            fig_seasonal = go.Figure()
-            fig_seasonal.add_trace(go.Scatter(
-                x=[calendar.month_name[i] for i in seasonal_avg.index],
-                y=seasonal_avg.values,
-                mode='lines+markers',
-                name='Portfolio Average',
-                line=dict(width=3, color='#2E8B57'),
-                marker=dict(size=10)
-            ))
-            
-            fig_seasonal.update_layout(
-                title="Seasonal NDVI Patterns Across All Farms",
-                xaxis_title="Month",
-                yaxis_title="Average NDVI",
-                height=400
-            )
-            st.plotly_chart(fig_seasonal, use_container_width=True)
-            
-            # Monthly box plot
-            fig_box = px.box(
-                combined_df.reset_index(),
-                x='month',
-                y='NDVI',
-                title="Monthly NDVI Distribution (All Farms)",
-                labels={'month': 'Month', 'NDVI': 'NDVI Value'}
-            )
-            
-            # Update x-axis to show month names
-            fig_box.update_xaxes(
-                tickmode='array',
-                tickvals=list(range(1, 13)),
-                ticktext=[calendar.month_abbr[i] for i in range(1, 13)]
-            )
-            st.plotly_chart(fig_box, use_container_width=True)
-            
-            # Insights
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.subheader("🍂 Challenging Months")
-                lowest_months = seasonal_avg.nsmallest(3)
-                for month_num, avg_ndvi in lowest_months.items():
-                    st.write(f"**{calendar.month_name[month_num]}**: {avg_ndvi:.3f}")
-                st.info("These months typically show lower vegetation health across the portfolio.")
-            
-            with col2:
-                st.subheader("🌱 Peak Growing Months")
-                highest_months = seasonal_avg.nlargest(3)
-                for month_num, avg_ndvi in highest_months.items():
-                    st.write(f"**{calendar.month_name[month_num]}**: {avg_ndvi:.3f}")
-                st.info("These months show optimal vegetation health conditions.")
-            
-            # Seasonal recommendations
-            st.subheader("📈 Seasonal Management Recommendations")
-            
-            seasonal_range = seasonal_avg.max() - seasonal_avg.min()
-            if seasonal_range > 0.2:
-                st.warning(f"High seasonal variability detected (range: {seasonal_range:.3f}). Consider:")
-                st.write("• Implementing seasonal irrigation adjustments")
-                st.write("• Planning maintenance during low-growth periods")
-                st.write("• Monitoring more closely during challenging months")
-            else:
-                st.success(f"Good seasonal stability (range: {seasonal_range:.3f}). Current management appears effective.")
-    
-    with tab4:
-        st.header("Individual Farm Analysis")
-        
-        if all_farms_data:
-            # Farm selection
-            selected_farm = st.selectbox(
-                "Select a farm for detailed analysis:",
-                options=list(all_farms_data.keys()),
-                help="Choose a farm to view detailed performance metrics and timeline"
-            )
-            
-            if selected_farm:
-                farm_data = all_farms_data[selected_farm]
+            try:
+                farm_aoi = ee.Geometry(farm['geojson'])
+                farm_folder = os.path.join(gdrive_folder, farm_name)
+                if not os.path.exists(farm_folder):
+                    os.makedirs(farm_folder)
                 
-                # Farm KPIs
-                st.subheader(f"📊 Performance Metrics: {selected_farm}")
+                # Quick collection - last 2 years only
+                collection = (ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
+                              .filterBounds(farm_aoi)
+                              .filterDate('2023-01-01', '2024-12-31')
+                              .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 20)))
                 
-                col1, col2, col3, col4 = st.columns(4)
-                
-                with col1:
-                    st.metric(
-                        "Peak NDVI", 
-                        f"{farm_data['kpis']['peak_ndvi']:.3f}",
-                        help="Highest NDVI value recorded"
-                    )
-                
-                with col2:
-                    st.metric(
-                        "Average NDVI", 
-                        f"{farm_data['kpis']['avg_ndvi']:.3f}",
-                        help="Mean NDVI across all time periods"
-                    )
-                
-                with col3:
-                    st.metric(
-                        "Minimum NDVI", 
-                        f"{farm_data['kpis']['min_ndvi']:.3f}",
-                        help="Lowest NDVI value recorded"
-                    )
-                
-                with col4:
-                    st.metric(
-                        "Volatility (σ)", 
-                        f"{farm_data['kpis']['std_ndvi']:.3f}",
-                        help="Standard deviation - lower is more stable"
-                    )
-                
-                # Performance assessment
-                avg_ndvi = farm_data['kpis']['avg_ndvi']
-                if avg_ndvi > 0.7:
-                    st.success(f"🌟 {selected_farm} shows excellent vegetation health!")
-                elif avg_ndvi > 0.5:
-                    st.info(f"✓ {selected_farm} shows good vegetation health.")
-                else:
-                    st.warning(f"⚠️ {selected_farm} may need attention - below average health.")
-                
-                # Detailed timeline
-                fig_timeline = create_farm_timeline(farm_data, selected_farm)
-                st.plotly_chart(fig_timeline, use_container_width=True)
-                
-                # Recent performance and trends
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.subheader("📈 Recent Trend Analysis")
-                    recent_data = farm_data['monthly_data'].tail(6)
-                    if len(recent_data) >= 2:
-                        trend = recent_data['NDVI'].iloc[-1] - recent_data['NDVI'].iloc[0]
-                        if trend > 0.05:
-                            st.success(f"📈 Improving trend (+{trend:.3f})")
-                        elif trend < -0.05:
-                            st.warning(f"📉 Declining trend ({trend:.3f})")
-                        else:
-                            st.info(f"➡️ Stable trend ({trend:+.3f})")
-                    
-                    # Show recent monthly averages
-                    st.write("**Last 6 Months:**")
-                    for date, ndvi in recent_data['NDVI'].items():
-                        st.write(f"{date.strftime('%Y-%m')}: {ndvi:.3f}")
-                
-                with col2:
-                    st.subheader("📊 Performance Comparison")
-                    if farm_performance:
-                        farm_rank = pd.DataFrame(farm_performance).set_index('farm_name')['avg_ndvi'].rank(ascending=False)
-                        current_rank = int(farm_rank[selected_farm])
-                        total_farms = len(farm_performance)
-                        
-                        st.metric("Portfolio Ranking", f"{current_rank} of {total_farms}")
-                        
-                        percentile = (total_farms - current_rank + 1) / total_farms * 100
-                        if percentile >= 75:
-                            st.success(f"Top {percentile:.0f}% performer! 🏆")
-                        elif percentile >= 50:
-                            st.info(f"Above average ({percentile:.0f}th percentile)")
-                        else:
-                            st.warning(f"Below average ({percentile:.0f}th percentile)")
-                
-                # Data download
-                st.subheader("📥 Export Data")
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    csv_data = farm_data['raw_data'].to_csv()
-                    st.download_button(
-                        label=f"Download {selected_farm} Raw Data",
-                        data=csv_data,
-                        file_name=f"{selected_farm}_raw_data.csv",
-                        mime="text/csv"
-                    )
-                
-                with col2:
-                    monthly_csv = farm_data['monthly_data'].to_csv()
-                    st.download_button(
-                        label=f"Download {selected_farm} Monthly Summary",
-                        data=monthly_csv,
-                        file_name=f"{selected_farm}_monthly_summary.csv",
-                        mime="text/csv"
-                    )
-    
-    # Footer
-    st.markdown("---")
-    st.markdown(
-        "*Palm Farm Analytics Dashboard | "
-        f"Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | "
-        f"Data from {len(st.session_state.get('farms_data', {}))} farms*"
-    )
+                def calculate_basic_indices(image):
+                    ndvi = image.normalizedDifference(['B8', 'B4']).rename('NDVI')
+                    ndwi = image.normalizedDifference(['B3', 'B8']).rename('NDWI')
+                    savi = image.expression('1.5 * (NIR - RED) / (NIR + RED + 0.5)', 
+                                            {'NIR': image.select('B8'), 'RED': image.select('B4')}).rename('SAVI')
+                    return image.addBands([ndvi, ndwi, savi])
 
-if __name__ == "__main__":
-    main()
+                def get_basic_stats(image):
+                    mean_dict = image.reduceRegion(
+                        reducer=ee.Reducer.mean(), 
+                        geometry=farm_aoi, 
+                        scale=20, 
+                        maxPixels=1e8
+                    )
+                    
+                    date = ee.Date(image.get('system:time_start'))
+                    
+                    return ee.Feature(None, {
+                        'time': image.get('system:time_start'),
+                        'year': date.get('year'),
+                        'month': date.get('month'),
+                        'day': date.get('day'),
+                        'NDVI': mean_dict.get('NDVI'),
+                        'NDWI': mean_dict.get('NDWI'),
+                        'SAVI': mean_dict.get('SAVI'),
+                        'cloud_percent': image.get('CLOUDY_PIXEL_PERCENTAGE')
+                    })
+
+                indices_collection = collection.map(calculate_basic_indices)
+                mean_fc = ee.FeatureCollection(indices_collection.map(get_basic_stats))
+                mean_fc = mean_fc.filter(ee.Filter.notNull(['NDVI', 'NDWI', 'SAVI']))
+                
+                df = geemap.ee_to_df(mean_fc)
+                
+                if not df.empty:
+                    df['timestamp'] = pd.to_datetime(df['time'], unit='ms')
+                    df['farm_id'] = farm_name
+                    df = df.sort_values('timestamp')
+                    
+                    quick_filename = os.path.join(farm_folder, f'{farm_name}_quick_collection.csv')
+                    df.to_csv(quick_filename, index=False)
+                    print(f"  ✅ Saved {len(df)} observations")
+                else:
+                    print(f"  ❌ No data for {farm_name}")
+                    
+            except Exception as e:
+                print(f"  ❌ Error: {e}")
+        
+        print("⚡ Quick collection completed!")
+
+# Function to add farm to list
+def add_farm_to_list(b):
+    with output_widget:
+        if not m.user_roi:
+            print("❌ Please draw a boundary on the map first.")
+            return
+        if not farm_name_input.value:
+            print("❌ Please enter a farm name.")
+            return
+        
+        farm_name = farm_name_input.value
+        farm_geojson = m.user_roi
+        farm_collection.append({'name': farm_name, 'geojson': farm_geojson})
+        
+        print(f"✅ Farm '{farm_name}' added. Total farms: {len(farm_collection)}")
+        farm_name_input.value = ''
+        m.remove_drawn_features()
+
+# Link functions to buttons
+add_button.on_click(add_farm_to_list)
+enhanced_collection_button.on_click(process_enhanced_collection)
+quick_collection_button.on_click(quick_collection_process)
+
+# Create UI layout
+print("\n🎛️ CONFIGURATION PANEL")
+config_panel = VBox([
+    HBox([date_start_input, date_end_input]),
+    HBox([cloud_threshold, collection_frequency]),
+    HBox([include_quality_bands, include_weather_data])
+])
+
+print("\n🗺️ MAP AND CONTROLS")
+control_panel = VBox([
+    m,
+    HBox([farm_name_input, add_button]),
+    HBox([quick_collection_button, enhanced_collection_button])
+])
+
+# Display the complete interface
+ui = VBox([
+    config_panel,
+    control_panel,
+    output_widget
+])
+
+print("\n" + "="*60)
+print("🌴 PALM FARM DATA COLLECTION SYSTEM READY")
+print("="*60)
+print("1. Configure collection parameters above")
+print("2. Draw farm boundaries on the map")
+print("3. Enter farm names and add to list")
+print("4. Choose Quick Collection (test) or Enhanced Collection (full)")
+print("5. Data will be saved to your Google Drive")
+print("\n📁 Output folder: " + gdrive_folder)
+
+display(ui)
