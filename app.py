@@ -316,7 +316,7 @@ def main():
         
         # Monthly aggregation for cleaner visualization
         monthly_data = df_filtered.groupby([
-            df_filtered['timestamp'].dt.to_period('M'), 'farm_name'
+            df_filtered['timestamp'].dt.to_period('ME'), 'farm_name' # FIXED: 'M' to 'ME'
         ])['NDVI'].mean().reset_index()
         monthly_data['timestamp'] = monthly_data['timestamp'].dt.to_timestamp()
         
@@ -532,7 +532,8 @@ def main():
                 st.write(f"**{medals[i]} {farm_name}**")
                 st.write(f"Health Score: {farm['health_score']:.1f}")
                 st.write(f"Avg NDVI: {farm['NDVI_mean']:.3f}")
-                st.write(f"Stability: {1/farm['NDVI_std']:.1f}")
+                # FIXED: Prevent division by zero
+                st.write(f"Stability: {1/(farm['NDVI_std'] + 1e-6):.1f}")
                 st.markdown('</div>', unsafe_allow_html=True)
         
         # Performance comparison chart
@@ -629,9 +630,11 @@ def main():
         st.header("📈 Trends & Forecasting")
         
         # Farm selection for detailed analysis
+        # FIXED: More robust way to select farm
+        farm_options = df_filtered['farm_name'].unique()
         selected_farm_trend = st.selectbox(
             "Select farm for trend analysis:",
-            options=df_filtered['farm_name'].unique()
+            options=farm_options
         )
         
         farm_trend_data = df_filtered[df_filtered['farm_name'] == selected_farm_trend].copy()
@@ -640,13 +643,12 @@ def main():
         st.subheader(f"📊 Time Series Analysis: {selected_farm_trend}")
         
         # Monthly aggregation for trend analysis
-        monthly_trend = farm_trend_data.groupby(farm_trend_data['timestamp'].dt.to_period('M')).agg({
+        monthly_trend = farm_trend_data.set_index('timestamp').resample('ME').agg({ # FIXED: 'M' to 'ME'
             'NDVI': 'mean',
             'NDWI': 'mean',
             'SAVI': 'mean',
             'cloud_percent': 'mean'
-        })
-        monthly_trend.index = monthly_trend.index.to_timestamp()
+        }).dropna()
         
         # Calculate trend
         if len(monthly_trend) > 12:
@@ -826,7 +828,7 @@ def main():
                 )
             else:
                 normal_sample = df_filtered[~df_filtered.index.isin(anomalies_df.index)]
-            
+
             
             fig_anomaly.add_trace(go.Scatter(
                 x=normal_sample['timestamp'],
@@ -976,19 +978,22 @@ def main():
         with col1:
             view_farm = st.selectbox(
                 "Select farm:",
-                options=['All'] + list(df_filtered['farm_name'].unique())
+                options=['All'] + list(df_filtered['farm_name'].unique()),
+                key='data_explorer_farm'
             )
         
         with col2:
             view_year = st.selectbox(
                 "Select year:",
-                options=['All'] + sorted(list(df_filtered['year'].unique()))
+                options=['All'] + sorted(list(df_filtered['year'].unique())),
+                key='data_explorer_year'
             )
         
         with col3:
             view_season = st.selectbox(
                 "Select season:",
-                options=['All'] + list(df_filtered['season'].unique())
+                options=['All'] + list(df_filtered['season'].unique()),
+                key='data_explorer_season'
             )
         
         # Apply filters
@@ -1043,7 +1048,12 @@ def main():
         st.markdown("**📊 Current Session**")
         st.markdown(f"Farms analyzed: {len(selected_farms)}")
         st.markdown(f"Data points: {len(df_filtered):,}")
-        st.markdown(f"Date range: {len(date_range)} days" if len(date_range) == 2 else "Full dataset")
+        # MODIFIED: More robust date range display
+        if len(date_range) == 2:
+            st.markdown(f"Date range: {date_range[0].strftime('%Y-%m-%d')} to {date_range[1].strftime('%Y-%m-%d')}")
+        else:
+            st.markdown("Date range: Full dataset")
+
     
     with col3:
         st.markdown("**💡 Key Metrics**")
