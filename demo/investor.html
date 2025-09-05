@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة المستثمر - إدارة المحفظة الاستثمارية</title>
+    <style>
+        :root {
+            --primary-green: #2E8B57;
+            --dark-green: #006400;
+            --light-green: #F0FFF0;
+            --brown: #8B4513;
+            --gold: #DAA520;
+            --text-dark: #333;
+            --tier-premium: #237804;
+            --tier-standard: #d4b106;
+            --tier-economy: #cf1322;
+            --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Tajawal', sans-serif;
+            background: var(--bg-gradient);
+            min-height: 100vh;
+            color: var(--text-dark);
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            color: white;
+            padding: 2rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr auto auto;
+            gap: 2rem;
+            align-items: center;
+        }
+        
+        .portfolio-info h1 {
+            font-size: 2.2rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(45deg, #FFD700, #FFA500);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .portfolio-meta {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+        
+        .portfolio-summary {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+            text-align: center;
+        }
+        
+        .summary-item {
+            background: rgba(255,255,255,0.1);
+            padding: 1rem;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .summary-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: var(--gold);
+        }
+        
+        .summary-label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+        
+        .market-status {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(0,255,0,0.2);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+        }
+        
+        .pulse-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #00ff00;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        
+        .dashboard-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            grid-template-rows: auto auto auto;
+            gap: 2rem;
+            grid-template-areas: 
+                "overview insights"
+                "farms insights"
+                "performance analytics";
+        }
+        
+        .overview-section { grid-area: overview; }
+        .farms-section { grid-area: farms; }
+        .performance-section { grid-area: performance; }
+        .insights-section { grid-area: insights; }
+        .analytics-section { grid-area: analytics; }
+        
+        .card {
+            background: rgba(255,255,255,0.95);
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            transition: transform 0.3s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .card h2 {
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            color: var(--dark-green);
+            border-bottom: 3px solid var(--primary-green);
+            padding-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .portfolio-metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .metric-card {
+            background: linear-gradient(135deg, var(--light-green), #e8f5e8);
+            padding: 1.5rem;
+            border-radius: 15px;
+            text-align: center;
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .metric-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--tier-premium), var(--gold));
+        }
+        
+        .metric-card:hover {
+            border-color: var(--primary-green);
+            transform: scale(1.05);
+        }
+        
+        .metric-value {
+            font-size: 2.2rem;
+            font-weight: bold;
+            color: var(--dark-green);
+            margin-bottom: 0.5rem;
+        }
+        
+        .metric-label {
+            font-size: 1rem;
+            color: #666;
+            margin-bottom: 0.5rem;
+        }
+        
+        .metric-change {
+            font-size: 0.9rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-weight: bold;
+        }
+        
+        .positive-change {
+            background: rgba(34, 139, 34, 0.1);
+            color: var(--tier-premium);
+        }
+        
+        .negative-change {
+            background: rgba(207, 19, 34, 0.1);
+            color: var(--tier-economy);
+        }
+        
+        .farms-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+        
+        .farms-table th,
+        .farms-table td {
+            padding: 1rem;
+            text-align: center;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .farms-table th {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            font-weight: bold;
+            color: var(--dark-green);
+            position: sticky;
+            top: 0;
+        }
+        
+        .farms-table tbody tr:hover {
+            background: rgba(46, 139, 87, 0.05);
+        }
+        
+        .tier-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 15px;
+            color: white;
+            font-size: 0.8rem;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        
+        .tier-premium {
+            background: linear-gradient(45deg, var(--tier-premium), #52c41a);
+        }
+        
+        .tier-standard {
+            background: linear-gradient(45deg, var(--tier-standard), #faad14);
+        }
+        
+        .tier-economy {
+            background: linear-gradient(45deg, var(--tier-economy), #ff4d4f);
+        }
+        
+        .risk-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin: 0 2px;
+        }
+        
+        .risk-low { background: #52c41a; }
+        .risk-medium { background: #faad14; }
+        .risk-high { background: #ff4d4f; }
+        
+        .chart-container {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border: 2px dashed #adb5bd;
+            height: 300px;
+            border-radius: 15px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #6c757d;
+            font-size: 1.1rem;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .chart-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary-green), var(--gold));
+        }
+        
+        .insight-card {
+            background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+            border-left: 4px solid #1976d2;
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+        }
+        
+        .insight-card h4 {
+            color: #0d47a1;
+            margin-bottom: 0.5rem;
+            font-size: 1.1rem;
+        }
+        
+        .insight-card p {
+            color: #1565c0;
+            line-height: 1.5;
+            margin-bottom: 0.5rem;
+        }
+        
+        .action-button {
+            background: linear-gradient(45deg, var(--brown), #CD853F);
+            color: white;
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .action-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 15px rgba(139, 69, 19, 0.3);
+        }
+        
+        .alert-card {
+            background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+            border-left: 4px solid #856404;
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+        }
+        
+        .alert-card h4 {
+            color: #856404;
+            margin-bottom: 0.5rem;
+            font-size: 1.1rem;
+        }
+        
+        .alert-card p {
+            color: #856404;
+            line-height: 1.5;
+        }
+        
+        .performance-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-top: 1rem;
+        }
+        
+        .mini-chart {
+            background: linear-gradient(135deg, #f0f8f0, #e8f5e8);
+            padding: 1rem;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .mini-chart h4 {
+            color: var(--dark-green);
+            margin-bottom: 1rem;
+        }
+        
+        .trend-line {
+            width: 100%;
+            height: 60px;
+            background: linear-gradient(45deg, transparent 40%, var(--primary-green) 50%, transparent 60%);
+            border-radius: 5px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .trend-line::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--primary-green);
+            transform: skew(-20deg);
+            animation: trendMove 3s ease-in-out infinite;
+        }
+        
+        @keyframes trendMove {
+            0%, 100% { transform: translateX(-100%) skew(-20deg); }
+            50% { transform: translateX(100%) skew(-20deg); }
+        }
+        
+        .forecast-card {
+            background: linear-gradient(135deg, #f3e5f5, #e1bee7);
+            border-left: 4px solid #9c27b0;
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+        }
+        
+        .forecast-card h4 {
+            color: #6a1b9a;
+            margin-bottom: 0.5rem;
+            font-size: 1.1rem;
+        }
+        
+        .forecast-card p {
+            color: #7b1fa2;
+            line-height: 1.5;
+        }
+        
+        .interactive-map {
+            background: linear-gradient(135deg, #e8f4fd, #d1ecf1);
+            border: 2px dashed #90caf9;
+            height: 400px;
+            border-radius: 15px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #1976d2;
+            font-size: 1.1rem;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .map-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><rect fill="%23e8f4fd" width="400" height="300"/><circle fill="%23ff4d4f" cx="120" cy="100" r="8"/><circle fill="%2352c41a" cx="200" cy="150" r="12"/><circle fill="%23faad14" cx="300" cy="180" r="10"/><circle fill="%2352c41a" cx="80" cy="200" r="10"/><text x="120" y="85" font-family="Arial" font-size="10" fill="%23333" text-anchor="middle">مزرعة الصحراء</text><text x="200" y="135" font-family="Arial" font-size="10" fill="%23333" text-anchor="middle">الواحة الخضراء</text></svg>') center/cover;
+            opacity: 0.3;
+        }
+        
+        @media (max-width: 768px) {
+            .dashboard-container {
+                grid-template-columns: 1fr;
+                grid-template-areas: 
+                    "overview"
+                    "insights"
+                    "farms"
+                    "performance"
+                    "analytics";
+                padding: 1rem;
+            }
+            
+            .header-content {
+                grid-template-columns: 1fr;
+                text-align: center;
+                gap: 1rem;
+            }
+            
+            .portfolio-summary {
+                grid-template-columns: 1fr;
+            }
+            
+            .performance-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <div class="portfolio-info">
+                <h1>📊 محفظة الاستثمارات الزراعية</h1>
+                <div class="portfolio-meta">إدارة ذكية • شفافية كاملة • عوائد مستدامة</div>
+            </div>
+            
+            <div class="portfolio-summary">
+                <div class="summary-item">
+                    <div class="summary-value">15</div>
+                    <div class="summary-label">مزرعة نشطة</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value">67%</div>
+                    <div class="summary-label">أداء ممتاز/قياسي</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value">2.4M</div>
+                    <div class="summary-label">القيمة الإجمالية (ريال)</div>
+                </div>
+            </div>
+            
+            <div class="market-status">
+                <div class="status-indicator">
+                    <div class="pulse-dot"></div>
+                    <span>السوق مفتوح</span>
+                </div>
+                <div style="font-size: 0.9rem; opacity: 0.8;">آخر تحديث: 14:30</div>
+            </div>
+        </div>
+    </header>
+
+    <div class="dashboard-container">
+        <!-- Portfolio Overview -->
+        <section class="overview-section">
+            <div class="card">
+                <h2>📈 نظرة عامة على الأداء</h2>
+                <div class="portfolio-metrics">
+                    <div class="metric-card">
+                        <div class="metric-value">+12.5%</div>
+                        <div class="metric-label">العائد السنوي</div>
+                        <div class="metric-change positive-change">↗ +2.1% هذا الشهر</div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-value">1,850</div>
+                        <div class="metric-label">متوقع الحصاد (طن)</div>
+                        <div class="metric-change positive-change">↗ +18% من العام الماضي</div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-value">مزارع الخير</div>
+                        <div class="metric-label">أفضل أداء</div>
+                        <div class="metric-change positive-change">NDVI: 0.72</div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-value">3</div>
+                        <div class="metric-label">تنبيهات نشطة</div>
+                        <div class="metric-change negative-change">تحتاج مراجعة</div>
+                    </div>
+                </div>
+                
+                <div class="interactive-map">
+                    <div class="map-overlay"></div>
+                    <div style="position: relative; z-index: 1;">
+                        <h3>خريطة تفاعلية للمزارع</h3>
+                        <p>🟢 ممتازة • 🟡 قياسية • 🔴 تحتاج اهتمام</p>
+                        <button class="action-button" style="margin-top: 1rem;">عرض الخريطة الكاملة</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Farms List -->
+        <section class="farms-section">
+            <div class="card">
+                <h2>🌴 قائمة المزارع والأداء</h2>
+                <div style="overflow-x: auto;">
+                    <table class="farms-table">
+                        <thead>
+                            <tr>
+                                <th>اسم المزرعة</th>
+                                <th>فئة الأداء</th>
+                                <th>توقع الحصاد</th>
+                                <th>تاريخ الحصاد</th>
+                                <th>المخاطر</th>
+                                <th>العائد المتوقع</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>مزارع الخير</strong></td>
+                                <td><span class="tier-badge tier-premium">ممتازة</span></td>
+                                <td>150 طن</td>
+                                <td>نوفمبر 2025</td>
+                                <td><span class="risk-indicator risk-low"></span> منخفض</td>
+                                <td>+15.2%</td>
+                            </tr>
+                            <tr>
+                                <td><strong>الواحة الخضراء</strong></td>
+                                <td><span class="tier-badge tier-premium">ممتازة</span></td>
+                                <td>120 طن</td>
+                                <td>أكتوبر 2025</td>
+                                <td><span class="risk-indicator risk-low"></span> منخفض</td>
+                                <td>+13.8%</td>
+                            </tr>
+                            <tr>
+                                <td><strong>نخيل الشمال</strong></td>
+                                <td><span class="tier-badge tier-standard">قياسية</span></td>
+                                <td>85 طن</td>
+                                <td>نوفمبر 2025</td>
+                                <td><span class="risk-indicator risk-medium"></span> متوسط</td>
+                                <td>+8.9%</td>
+                            </tr>
+                            <tr>
+                                <td><strong>مزرعة الجنوب</strong></td>
+                                <td><span class="tier-badge tier-standard">قياسية</span></td>
+                                <td>95 طن</td>
+                                <td>ديسمبر 2025</td>
+                                <td><span class="risk-indicator risk-medium"></span> متوسط</td>
+                                <td>+7.3%</td>
+                            </tr>
+                            <tr>
+                                <td><strong>مزرعة الصحراء</strong></td>
+                                <td><span class="tier-badge tier-economy">اقتصادية</span></td>
+                                <td>40 طن</td>
+                                <td>أكتوبر 2025</td>
+                                <td><span class="risk-indicator risk-high"></span> مرتفع</td>
+                                <td>+2.1%</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Performance Analysis -->
+        <section class="performance-section">
+            <div class="card">
+                <h2>📊 تحليل الأداء والاتجاهات</h2>
+                <div class="chart-container">
+                    <div>📈</div>
+                    <div>رسم بياني تفاعلي لأداء المحفظة</div>
+                    <div style="font-size: 0.9rem; margin-top: 1rem;">اتجاه تصاعدي للعوائد خلال آخر 12 شهر</div>
+                </div>
+                
+                <div class="performance-grid">
+                    <div class="mini-chart">
+                        <h4>🌱 متوسط NDVI للمحفظة</h4>
+                        <div class="trend-line"></div>
+                        <div style="margin-top: 0.5rem; color: var(--tier-premium); font-weight: bold;">0.65 (+8.2%)</div>
+                    </div>
+                    
+                    <div class="mini-chart">
+                        <h4>💰 العائد الشهري</h4>
+                        <div class="trend-line"></div>
+                        <div style="margin-top: 0.5rem; color: var(--tier-premium); font-weight: bold;">+2.1% هذا الشهر</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Insights & Recommendations -->
+        <section class="insights-section">
+            <div class="card" style="height: fit-content;">
+                <h2>💡 رؤى ذكية وتوصيات</h2>
+                
+                <div class="insight-card">
+                    <h4>🏆 فرصة استثمارية</h4>
+                    <p>مزرعة "الواحة الخضراء" تظهر أداءً استثنائياً. فرصة لزيادة الاستثمار قبل موسم الحصاد.</p>
+                    <button class="action-button">تفاصيل الفرصة</button>
+                </div>
+                
+                <div class="alert-card">
+                    <h4>⚠️ تنبيه مخاطر</h4>
+                    <p>مزرعة الصحراء تحتاج مراجعة عاجلة. انخفاض في مؤشر NDVI يتطلب تدخل فوري لحماية الاستثمار.</p>
+                </div>
+                
+                <div class="forecast-card">
+                    <h4>🔮 توقعات الموسم</h4>
+                    <p>التحليل يشير إلى موسم حصاد ممتاز بزيادة 18% في الإنتاج. توقع عوائد أعلى من المتوسط.</p>
+                </div>
+                
+                <div class="insight-card">
+                    <h4>♻️ فرص الاستدامة</h4>
+                    <p>مع زيادة الإنتاج المتوقعة، ستزداد المخلفات القابلة للتدوير. فرصة لدخل إضافي من منتجات السعف.</p>
+                    <button class="action-button">خطة التدوير</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Analytics Section -->
+        <section class="analytics-section">
+            <div class="card">
+                <h2>📊 تحليلات متقدمة</h2>
+                
+                <div style="margin-bottom: 2rem;">
+                    <h4 style="color: var(--dark-green); margin-bottom: 1rem;">توزيع الاستثمارات حسب الفئة</h4>
+                    <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+                        <div style="background: var(--tier-premium); height: 20px; width: 40%; border-radius: 10px;"></div>
+                        <div style="background: var(--tier-standard); height: 20px; width: 35%; border-radius: 10px;"></div>
+                        <div style="background: var(--tier-economy); height: 20px; width: 25%; border-radius: 10px;"></div>
+                    </div>
+                    <div style="display: flex; gap: 2rem; font-size: 0.9rem;">
+                        <span>🟢 ممتازة: 40%</span>
+                        <span>🟡 قياسية: 35%</span>
+                        <span>🔴 اقتصادية: 25%</span>
+                    </div>
+                </div>
+                
+                <div>
+                    <h4 style="color: var(--dark-green); margin-bottom: 1rem;">مؤشرات المخاطر</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div style="background: #f0f8f0; padding: 1rem; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 1.5rem; font-weight: bold; color: var(--tier-premium);">منخفض</div>
+                            <div style="font-size: 0.9rem; color: #666;">تنويع جيد للمحفظة</div>
+                        </div>
+                        <div style="background: #f0f8f0; padding: 1rem; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 1.5rem; font-weight: bold; color: var(--primary-green);">92%</div>
+                            <div style="font-size: 0.9rem; color: #666;">معدل النجاح</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        // Real-time updates simulation
+        function updateMetrics() {
+            const metrics = document.querySelectorAll('.metric-value');
+            const returns = document.querySelector('.metric-value');
+            
+            // Simulate small changes in returns
+            if (returns && returns.textContent.includes('%')) {
+                const currentReturn = parseFloat(returns.textContent.replace('%', '').replace('+', ''));
+                const newReturn = Math.max(8, Math.min(18, currentReturn + (Math.random() - 0.5) * 0.5));
+                returns.textContent = `+${newReturn.toFixed(1)}%`;
+                
+                const changeElement = returns.parentElement.querySelector('.metric-change');
+                const monthlyChange = (Math.random() * 3).toFixed(1);
+                changeElement.textContent = `↗ +${monthlyChange}% هذا الشهر`;
+            }
+        }
+
+        // Update timestamp
+        function updateTimestamp() {
+            const now = new Date();
+            const time = now.toLocaleTimeString('ar-SA', { 
+                hour: '2-digit', 
+                minute: '2-digit',
+                hour12: false 
+            });
+            document.querySelector('.market-status div:last-child').textContent = `آخر تحديث: ${time}`;
+        }
+
+        // Interactive table hover effects
+        function initializeTableEffects() {
+            const rows = document.querySelectorAll('.farms-table tbody tr');
+            rows.forEach(row => {
+                row.addEventListener('click', function() {
+                    // Remove previous selection
+                    rows.forEach(r => r.style.background = '');
+                    // Highlight selected row
+                    this.style.background = 'rgba(46, 139, 87, 0.1)';
+                    
+                    // Show farm details (simulation)
+                    const farmName = this.querySelector('td:first-child strong').textContent;
+                    showFarmDetails(farmName);
+                });
+            });
+        }
+
+        // Show farm details modal (simulation)
+        function showFarmDetails(farmName) {
+            const modal = document.createElement('div');
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0,0,0,0.5);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 1000;
+            `;
+            
+            modal.innerHTML = `
+                <div style="background: white; padding: 2rem; border-radius: 15px; max-width: 500px; width: 90%;">
+                    <h3 style="color: var(--dark-green); margin-bottom: 1rem;">تفاصيل ${farmName}</h3>
+                    <div style="margin-bottom: 1rem;">
+                        <strong>الموقع:</strong> المدينة المنورة<br>
+                        <strong>المساحة:</strong> 45 هكتار<br>
+                        <strong>عدد النخيل:</strong> 2,200 شجرة<br>
+                        <strong>آخر فحص:</strong> منذ 3 أيام
+                    </div>
+                    <div style="background: #f0f8f0; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                        <strong>المؤشرات الحالية:</strong><br>
+                        NDVI: 0.68 | NDWI: -0.12 | SAVI: 0.45
+                    </div>
+                    <button onclick="this.parentElement.parentElement.remove()" 
+                            style="background: var(--brown); color: white; padding: 0.5rem 1rem; border: none; border-radius: 5px; cursor: pointer;">
+                        إغلاق
+                    </button>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            // Close on click outside
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    modal.remove();
+                }
+            });
+        }
+
+        // Notification system
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: ${type === 'success' ? '#d4edda' : type === 'warning' ? '#fff3cd' : '#d1ecf1'};
+                color: ${type === 'success' ? '#155724' : type === 'warning' ? '#856404' : '#0c5aa6'};
+                padding: 1rem 1.5rem;
+                border-radius: 8px;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+                z-index: 1001;
+                max-width: 300px;
+                animation: slideInRight 0.3s ease;
+            `;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 5000);
+        }
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeTableEffects();
+            updateTimestamp();
+            
+            // Regular updates
+            setInterval(updateMetrics, 45000);
+            setInterval(updateTimestamp, 60000);
+            
+            // Add card hover effects
+            document.querySelectorAll('.card').forEach(card => {
+                card.addEventListener('mouseenter', function() {
+                    this.style.transform = 'translateY(-5px)';
+                    this.style.boxShadow = '0 20px 40px rgba(0,0,0,0.15)';
+                });
+                
+                card.addEventListener('mouseleave', function() {
+                    this.style.transform = 'translateY(0)';
+                    this.style.boxShadow = '0 15px 35px rgba(0,0,0,0.1)';
+                });
+            });
+            
+            // Simulate real-time alerts
+            setTimeout(() => {
+                showNotification('تم تحديث بيانات مزرعة الواحة الخضراء', 'success');
+            }, 3000);
+            
+            setTimeout(() => {
+                showNotification('تنبيه: مزرعة الصحراء تحتاج مراجعة', 'warning');
+            }, 8000);
+        });
+
+        // Add CSS for animations
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideInRight {
+                from { transform: translateX(100%); }
+                to { transform: translateX(0); }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>
