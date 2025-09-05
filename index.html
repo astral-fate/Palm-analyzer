@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تحليلات مزارع النخيل | الذكاء الاصطناعي لمستقبل الزراعة</title>
+    <style>
+        :root {
+            --primary-green: #2E8B57;
+            --dark-green: #006400;
+            --light-green: #F0FFF0;
+            --brown: #8B4513;
+            --gold: #DAA520;
+            --text-dark: #333;
+            --font-family: 'Tajawal', sans-serif;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: var(--font-family);
+            line-height: 1.6;
+            color: var(--text-dark);
+            overflow-x: hidden;
+        }
+        
+        .hero {
+            background: linear-gradient(135deg, rgba(46,139,87,0.9), rgba(218,165,32,0.8)), 
+                        url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600"><rect fill="%23228B22" width="1000" height="600"/><circle fill="%23DAA520" cx="200" cy="150" r="30"/><circle fill="%23DAA520" cx="800" cy="100" r="25"/><circle fill="%238B4513" cx="150" cy="300" r="60"/><circle fill="%238B4513" cx="850" cy="350" r="70"/></svg>') center/cover;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            color: white;
+            position: relative;
+        }
+        
+        .hero-content {
+            max-width: 800px;
+            padding: 2rem;
+            animation: fadeInUp 1s ease-out;
+        }
+        
+        .hero h1 {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .hero p {
+            font-size: 1.5rem;
+            margin-bottom: 2rem;
+            opacity: 0.95;
+        }
+        
+        .cta-buttons {
+            display: flex;
+            gap: 2rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 15px 30px;
+            text-decoration: none;
+            border-radius: 50px;
+            font-weight: bold;
+            font-size: 1.1rem;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        
+        .btn-primary {
+            background: var(--brown);
+            color: white;
+        }
+        
+        .btn-secondary {
+            background: white;
+            color: var(--dark-green);
+        }
+        
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+        }
+        
+        .section {
+            padding: 80px 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .section-title {
+            text-align: center;
+            font-size: 2.5rem;
+            color: var(--dark-green);
+            margin-bottom: 3rem;
+        }
+        
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-top: 3rem;
+        }
+        
+        .feature-card {
+            background: white;
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+            border-top: 5px solid var(--primary-green);
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-10px);
+        }
+        
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        
+        .feature-card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: var(--dark-green);
+        }
+        
+        .benefits-section {
+            background: var(--light-green);
+        }
+        
+        .benefits-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 3rem;
+            align-items: start;
+        }
+        
+        .benefit-card {
+            background: white;
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+        
+        .farmer-card {
+            border-right: 8px solid var(--primary-green);
+        }
+        
+        .investor-card {
+            border-right: 8px solid var(--brown);
+        }
+        
+        .benefit-card h3 {
+            font-size: 1.8rem;
+            margin-bottom: 1rem;
+            color: var(--dark-green);
+        }
+        
+        .benefit-list {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .benefit-list li {
+            padding: 0.5rem 0;
+            padding-right: 2rem;
+            position: relative;
+        }
+        
+        .benefit-list li::before {
+            content: "✓";
+            position: absolute;
+            right: 0;
+            color: var(--primary-green);
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+        
+        .stats-section {
+            background: var(--dark-green);
+            color: white;
+            text-align: center;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 2rem;
+        }
+        
+        .stat-item {
+            padding: 1rem;
+        }
+        
+        .stat-number {
+            font-size: 3rem;
+            font-weight: bold;
+            color: var(--gold);
+        }
+        
+        .stat-label {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        
+        .cta-section {
+            background: linear-gradient(135deg, var(--primary-green), var(--dark-green));
+            color: white;
+            text-align: center;
+        }
+        
+        .footer {
+            background: var(--text-dark);
+            color: white;
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+            
+            .hero p {
+                font-size: 1.2rem;
+            }
+            
+            .benefits-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .cta-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+        
+        .notification-banner {
+            background: linear-gradient(90deg, var(--gold), #FFA500);
+            color: white;
+            text-align: center;
+            padding: 1rem;
+            font-weight: bold;
+        }
+        
+        .demo-preview {
+            background: #f8f9fa;
+            padding: 4rem 2rem;
+            text-align: center;
+        }
+        
+        .demo-mockup {
+            max-width: 800px;
+            margin: 2rem auto;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        
+        .mockup-header {
+            background: var(--dark-green);
+            color: white;
+            padding: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .mockup-dots {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.3);
+        }
+        
+        .mockup-content {
+            background: white;
+            padding: 2rem;
+            min-height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+ 
+
+    <section class="hero">
+        <div class="hero-content">
+            <h1>🌴 الذكاء الاصطناعي لمزارع النخيل</h1>
+            <p>منصة متطورة تحول بيانات الأقمار الصناعية إلى قرارات استثمارية وزراعية ذكية</p>
+            <div class="cta-buttons">
+                <a href="demo/farmer.html" class="btn btn-primary">
+                    🌾 تجربة المزارع
+                </a>
+                <a href="demo/investor.html" class="btn btn-secondary">
+                    📈 لوحة المستثمر
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <section class="section">
+        <div class="container">
+            <h2 class="section-title">الحل الشامل لصناعة التمور</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🛰️</div>
+                    <h3>تحليل بيانات الأقمار الصناعية</h3>
+                    <p>نستخدم بيانات Sentinel-2 لمراقبة صحة المحاصيل والتنبؤ بالإنتاج بدقة عالية</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">🤖</div>
+                    <h3>الذكاء الاصطناعي المتقدم</h3>
+                    <p>نماذج تعلم آلي متطورة لاكتشاف الشذوذ والتنبؤ بالأداء والتحليل الموسمي</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">📊</div>
+                    <h3>مؤشر أداء موحد</h3>
+                    <p>نظام تقييم شامل يصنف المزارع إلى فئات: ممتازة، قياسية، واقتصادية</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">🔄</div>
+                    <h3>الاستدامة والتدوير</h3>
+                    <p>تحويل مخلفات النخيل إلى منتجات قيمة وتحسين البصمة الكربونية</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">⚡</div>
+                    <h3>التنبيهات الفورية</h3>
+                    <p>إنذار مبكر عند اكتشاف مشاكل في صحة المحصول أو انخفاض الأداء</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">🎯</div>
+                    <h3>الشفافية الكاملة</h3>
+                    <p>معلومات دقيقة في الوقت الفعلي لاتخاذ قرارات مستنيرة</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="section benefits-section">
+        <div class="container">
+            <h2 class="section-title">حل واحد، قيمة مضاعفة</h2>
+            <div class="benefits-grid">
+                <div class="benefit-card farmer-card">
+                    <h3>🌾 للمزارعين: تحكم ذكي في مزرعتك</h3>
+                    <ul class="benefit-list">
+                        <li><strong>مراقبة صحة المحصول:</strong> تتبع يومي لمؤشرات NDVI و SAVI</li>
+                        <li><strong>تنبيهات استباقية:</strong> إنذار مبكر قبل تفاقم المشاكل</li>
+                        <li><strong>نصائح تلقائية:</strong> توصيات ذكية لزيادة الإنتاج</li>
+                        <li><strong>إدارة المخلفات:</strong> كتالوج شامل لـ20+ منتج من مخلفات النخيل</li>
+                        <li><strong>توقع الحصاد:</strong> تنبؤات دقيقة للكمية والجودة</li>
+                        <li><strong>تحسين الأرباح:</strong> بيع المخلفات كمصدر دخل إضافي</li>
+                    </ul>
+                </div>
+                
+                <div class="benefit-card investor-card">
+                    <h3>💼 للمستثمرين: استثمر بذكاء وشفافية</h3>
+                    <ul class="benefit-list">
+                        <li><strong>تقييم موضوعي:</strong> مؤشر أداء علمي لكل مزرعة</li>
+                        <li><strong>إدارة المحفظة:</strong> مراقبة أداء جميع الاستثمارات</li>
+                        <li><strong>تقييم المخاطر:</strong> اكتشاف المزارع المتقلبة مبكراً</li>
+                        <li><strong>توقع الأرباح:</strong> تنبؤات دقيقة للعائد والجودة</li>
+                        <li><strong>فرص جديدة:</strong> تحديد المزارع الواعدة للاستثمار</li>
+                        <li><strong>الشفافية الكاملة:</strong> بيانات حقيقية وليس تقديرات</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="section stats-section">
+        <div class="container">
+            <h2 class="section-title">إنجازاتنا بالأرقام</h2>
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-number">15+</div>
+                    <div class="stat-label">مزرعة تحت المراقبة</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">7</div>
+                    <div class="stat-label">سنوات من البيانات التاريخية</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">95%</div>
+                    <div class="stat-label">دقة التنبؤ</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">3</div>
+                    <div class="stat-label">مسارات تمر-ثون</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="demo-preview">
+        <div class="container">
+            <h2 class="section-title">شاهد النظام في العمل</h2>
+            <div class="demo-mockup">
+                <div class="mockup-header">
+                    <div class="mockup-dots">
+                        <div class="dot"></div>
+                        <div class="dot"></div>
+                        <div class="dot"></div>
+                    </div>
+                    <span>منصة تحليلات مزارع النخيل</span>
+                </div>
+                <div class="mockup-content">
+                    <div>
+                        <h3>لوحة تحكم تفاعلية</h3>
+                        <p>مراقبة فورية • تحليل ذكي • قرارات مستنيرة</p>
+                        <div style="margin-top: 2rem;">
+                            <a href="#farmer-demo" class="btn btn-primary">تجربة حية للمزارعين</a>
+                            <a href="#investor-demo" class="btn btn-secondary" style="margin-right: 1rem;">تجربة حية للمستثمرين</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="section cta-section">
+        <div class="container">
+            <h2>ابدأ رحلتك نحو زراعة أكثر ذكاءً</h2>
+            <p style="font-size: 1.2rem; margin: 2rem 0;">انضم إلى ثورة الزراعة الذكية واكتشف إمكانيات لا محدودة</p>
+            <div class="cta-buttons">
+                <a href="#contact" class="btn btn-secondary">تواصل معنا</a>
+                <a href="#demo" class="btn btn-primary">جرب النظام الآن</a>
+            </div>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 منصة تحليلات مزارع النخيل | مساهمة في تمر-ثون 2025</p>
+            <p>تطوير فريق الذكاء الاصطناعي للزراعة المستدامة</p>
+        </div>
+    </footer>
+
+    <script>
+        // Smooth scrolling for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // Add scroll animations
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('.feature-card, .benefit-card').forEach(el => {
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(30px)';
+            el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+            observer.observe(el);
+        });
+    </script>
+</body>
+</html>
