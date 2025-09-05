@@ -3,12 +3,9 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import os
 import calendar
 import numpy as np
 from datetime import datetime
-import io
-import zipfile
 
 # Configure Streamlit page
 st.set_page_config(
@@ -44,83 +41,78 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-def process_uploaded_files(uploaded_files):
-    """Process uploaded CSV files"""
-    all_farms_data = {}
-    farm_performance = []
-    
-    if not uploaded_files:
-        return {}, []
-    
-    progress_bar = st.progress(0)
-    
-    for i, uploaded_file in enumerate(uploaded_files):
-        progress_bar.progress((i + 1) / len(uploaded_files))
+def process_consolidated_data(uploaded_file):
+    """Process the consolidated CSV file containing all farm data"""
+    try:
+        # Read the consolidated CSV
+        df = pd.read_csv(uploaded_file)
         
-        # Extract farm name from filename
-        filename = uploaded_file.name
-        if filename.endswith('_indices_timeseries.csv'):
-            farm_name = filename.replace('_indices_timeseries.csv', '')
+        # Validate required columns
+        required_columns = ['farm_id', 'time', 'NDVI']
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        
+        if missing_columns:
+            st.error(f"Missing required columns: {missing_columns}")
+            st.info("Expected columns: farm_id, time, NDVI")
+            return None, None
+        
+        # Handle time column
+        if df['time'].dtype == 'object':
+            try:
+                df['time'] = pd.to_datetime(df['time'])
+            except:
+                df['time'] = pd.to_datetime(df['time'], unit='ms')
         else:
-            farm_name = filename.replace('.csv', '')
+            df['time'] = pd.to_datetime(df['time'], unit='ms')
         
-        try:
-            # Read the CSV file
-            df = pd.read_csv(uploaded_file)
+        df = df.set_index('time')
+        
+        # Process data by farm
+        all_farms_data = {}
+        farm_performance = []
+        
+        unique_farms = df['farm_id'].unique()
+        
+        for farm_id in unique_farms:
+            farm_df = df[df['farm_id'] == farm_id].copy()
             
-            # Handle different time formats
-            if 'time' in df.columns:
-                if df['time'].dtype == 'object':
-                    try:
-                        df['time'] = pd.to_datetime(df['time'])
-                    except:
-                        df['time'] = pd.to_datetime(df['time'], unit='ms')
-                else:
-                    df['time'] = pd.to_datetime(df['time'], unit='ms')
-                df = df.set_index('time')
-            
-            # Ensure NDVI column exists
-            if 'NDVI' not in df.columns:
-                st.warning(f"No NDVI column found in {filename}. Skipping...")
-                continue
-            
-            # Calculate KPIs
-            peak_ndvi = df['NDVI'].max()
-            avg_ndvi = df['NDVI'].mean()
-            min_ndvi = df['NDVI'].min()
-            std_ndvi = df['NDVI'].std()
+            # Calculate KPIs for this farm
+            peak_ndvi = farm_df['NDVI'].max()
+            avg_ndvi = farm_df['NDVI'].mean()
+            min_ndvi = farm_df['NDVI'].min()
+            std_ndvi = farm_df['NDVI'].std()
             
             # Monthly aggregation
-            df_monthly = df.resample('M').mean()
+            df_monthly = farm_df.resample('M').mean()
             
-            all_farms_data[farm_name] = {
-                'raw_data': df,
+            all_farms_data[farm_id] = {
+                'raw_data': farm_df,
                 'monthly_data': df_monthly,
                 'kpis': {
                     'peak_ndvi': peak_ndvi,
                     'avg_ndvi': avg_ndvi,
                     'min_ndvi': min_ndvi,
                     'std_ndvi': std_ndvi,
-                    'data_points': len(df)
+                    'data_points': len(farm_df)
                 }
             }
             
             farm_performance.append({
-                'farm_name': farm_name,
+                'farm_name': farm_id,
                 'avg_ndvi': avg_ndvi,
                 'peak_ndvi': peak_ndvi,
                 'min_ndvi': min_ndvi,
                 'volatility': std_ndvi
             })
-            
-        except Exception as e:
-            st.warning(f"Error processing {filename}: {e}")
-    
-    progress_bar.empty()
-    return all_farms_data, farm_performance
+        
+        return all_farms_data, farm_performance
+        
+    except Exception as e:
+        st.error(f"Error processing file: {e}")
+        return None, None
 
 def create_seasonal_analysis(all_farms_data):
-    """Create seasonal analysis"""
+    """Create seasonal analysis from consolidated data"""
     all_monthly_data = []
     
     for farm_name, data in all_farms_data.items():
@@ -187,72 +179,107 @@ def create_farm_timeline(farm_data, farm_name):
     
     return fig
 
+def create_portfolio_heatmap(all_farms_data):
+    """Create a heatmap showing farm performance over time"""
+    farm_monthly_data = []
+    
+    for farm_name, data in all_farms_data.items():
+        monthly_df = data['monthly_data'].copy()
+        monthly_df['farm'] = farm_name
+        monthly_df['year_month'] = monthly_df.index.strftime('%Y-%m')
+        farm_monthly_data.append(monthly_df[['farm', 'year_month', 'NDVI']])
+    
+    if farm_monthly_data:
+        combined_df = pd.concat(farm_monthly_data)
+        
+        # Pivot for heatmap
+        heatmap_data = combined_df.pivot(index='farm', columns='year_month', values='NDVI')
+        
+        fig = px.imshow(
+            heatmap_data,
+            title="Farm Performance Heatmap Over Time",
+            color_continuous_scale='RdYlGn',
+            aspect='auto'
+        )
+        
+        fig.update_layout(
+            xaxis_title="Time Period",
+            yaxis_title="Farm",
+            height=max(400, len(heatmap_data) * 30)
+        )
+        
+        return fig
+    return None
+
 def main():
     st.markdown('<h1 class="main-header">🌴 Palm Farm Analytics Dashboard</h1>', 
                 unsafe_allow_html=True)
     
     # File Upload Section
     st.markdown('<div class="upload-section">', unsafe_allow_html=True)
-    st.header("📁 Upload Your Farm Data")
+    st.header("📁 Upload Consolidated Farm Data")
     st.markdown("""
     **Instructions:**
-    1. Upload your CSV files containing farm time-series data
-    2. Files should have columns: 'time' and 'NDVI'
-    3. You can upload multiple files at once
-    4. Supported formats: CSV files
+    1. Upload your consolidated CSV file containing all farm data
+    2. File should have columns: `farm_id`, `time`, `NDVI`
+    3. Each row represents one farm's data point at a specific time
+    4. Farm identification is handled automatically via `farm_id` column
     """)
     
-    uploaded_files = st.file_uploader(
-        "Choose CSV files",
+    uploaded_file = st.file_uploader(
+        "Choose consolidated CSV file",
         type=['csv'],
-        accept_multiple_files=True,
-        help="Upload your farm time-series data files. Each file should contain 'time' and 'NDVI' columns."
+        help="Upload the consolidated CSV file created by the farm data consolidator script"
     )
+    
+    # Show expected format
+    if not uploaded_file:
+        st.subheader("📋 Expected CSV Format")
+        sample_data = pd.DataFrame({
+            'farm_id': ['farm1', 'farm1', 'farm2', 'farm2', 'farm3', 'farm3'],
+            'farm_name': ['farm1', 'farm1', 'farm2', 'farm2', 'farm3', 'farm3'],
+            'time': [1609459200000, 1612137600000, 1609459200000, 1612137600000, 1609459200000, 1612137600000],
+            'NDVI': [0.75, 0.72, 0.68, 0.71, 0.80, 0.78]
+        })
+        st.dataframe(sample_data)
+        st.info("Use the farm data consolidator script to create this format from your nested folders")
+    
     st.markdown('</div>', unsafe_allow_html=True)
     
-    # Process uploaded files
-    if uploaded_files:
-        with st.spinner("Processing uploaded files..."):
-            all_farms_data, farm_performance = process_uploaded_files(uploaded_files)
+    # Process uploaded file
+    if uploaded_file:
+        with st.spinner("Processing consolidated farm data..."):
+            all_farms_data, farm_performance = process_consolidated_data(uploaded_file)
         
-        if not all_farms_data:
-            st.error("No valid data found in uploaded files. Please check your CSV format.")
-            st.markdown("""
-            **Expected CSV format:**
-            ```
-            time,NDVI
-            1609459200000,0.75
-            1609545600000,0.72
-            ...
-            ```
-            """)
+        if all_farms_data is None:
             return
         
         # Store data in session state
         st.session_state.farms_data = all_farms_data
         st.session_state.farm_performance = farm_performance
         
-        st.success(f"✅ Successfully processed {len(all_farms_data)} farms!")
+        st.success(f"✅ Successfully processed data for {len(all_farms_data)} farms!")
+        
+        # Show data summary
+        total_records = sum(len(data['raw_data']) for data in all_farms_data.values())
+        st.info(f"📊 Loaded {total_records:,} data points across {len(all_farms_data)} farms")
     
     # Check if data exists
     if 'farms_data' not in st.session_state or not st.session_state.farms_data:
-        st.info("👆 Please upload your farm data files to get started")
-        
-        # Show sample data format
-        st.subheader("📋 Sample Data Format")
-        sample_data = pd.DataFrame({
-            'time': pd.date_range('2023-01-01', periods=12, freq='M'),
-            'NDVI': np.random.uniform(0.3, 0.8, 12)
-        })
-        sample_data['time'] = sample_data['time'].astype(str)
-        st.dataframe(sample_data)
+        st.info("👆 Please upload your consolidated farm data file to get started")
         return
     
     all_farms_data = st.session_state.farms_data
     farm_performance = st.session_state.farm_performance
     
     # Create tabs for different analyses
-    tab1, tab2, tab3, tab4 = st.tabs(["📊 Portfolio Overview", "📈 Farm Comparison", "📅 Seasonal Analysis", "🔍 Individual Farm Details"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "📊 Portfolio Overview", 
+        "📈 Farm Comparison", 
+        "📅 Seasonal Analysis", 
+        "🔍 Individual Farm Details",
+        "🌡️ Performance Heatmap"
+    ])
     
     with tab1:
         st.header("Portfolio Performance Overview")
@@ -303,9 +330,40 @@ def main():
                     title="Risk vs Return Analysis",
                     labels={'avg_ndvi': 'Average NDVI (Performance)', 'volatility': 'Volatility (Risk)'},
                     color='avg_ndvi',
-                    color_continuous_scale='Greens'
+                    color_continuous_scale='RdYlGn'
                 )
                 st.plotly_chart(fig_scatter, use_container_width=True)
+            
+            # Portfolio time series
+            st.subheader("📈 Portfolio Performance Timeline")
+            
+            # Combine all farm data for portfolio view
+            portfolio_data = []
+            for farm_name, data in all_farms_data.items():
+                monthly_df = data['monthly_data'].copy()
+                monthly_df['farm'] = farm_name
+                portfolio_data.append(monthly_df)
+            
+            if portfolio_data:
+                combined_portfolio = pd.concat(portfolio_data)
+                portfolio_avg = combined_portfolio.groupby(combined_portfolio.index)['NDVI'].mean()
+                
+                fig_portfolio = go.Figure()
+                fig_portfolio.add_trace(go.Scatter(
+                    x=portfolio_avg.index,
+                    y=portfolio_avg.values,
+                    mode='lines+markers',
+                    name='Portfolio Average',
+                    line=dict(width=3, color='#2E8B57')
+                ))
+                
+                fig_portfolio.update_layout(
+                    title="Portfolio Average NDVI Over Time",
+                    xaxis_title="Date",
+                    yaxis_title="Average NDVI",
+                    height=400
+                )
+                st.plotly_chart(fig_portfolio, use_container_width=True)
             
             # Portfolio statistics
             st.subheader("📊 Portfolio Statistics")
@@ -385,6 +443,37 @@ def main():
                 bottom_farms.columns = ['Farm Name', 'Avg NDVI', 'Min NDVI']
                 st.dataframe(bottom_farms.round(3), hide_index=True)
             
+            # Multi-farm comparison chart
+            st.subheader("📊 Multi-Farm Timeline Comparison")
+            
+            # Allow user to select farms for comparison
+            selected_farms = st.multiselect(
+                "Select farms to compare:",
+                options=list(all_farms_data.keys()),
+                default=list(all_farms_data.keys())[:5] if len(all_farms_data) > 5 else list(all_farms_data.keys())
+            )
+            
+            if selected_farms:
+                fig_multi = go.Figure()
+                
+                for farm in selected_farms:
+                    monthly_data = all_farms_data[farm]['monthly_data']
+                    fig_multi.add_trace(go.Scatter(
+                        x=monthly_data.index,
+                        y=monthly_data['NDVI'],
+                        mode='lines+markers',
+                        name=farm,
+                        line=dict(width=2)
+                    ))
+                
+                fig_multi.update_layout(
+                    title="Farm Performance Comparison Over Time",
+                    xaxis_title="Date",
+                    yaxis_title="NDVI",
+                    height=500
+                )
+                st.plotly_chart(fig_multi, use_container_width=True)
+            
             # Detailed metrics table
             st.subheader("📋 Complete Farm Metrics")
             detailed_df = df_perf.copy()
@@ -450,17 +539,35 @@ def main():
                     st.write(f"**{calendar.month_name[month_num]}**: {avg_ndvi:.3f}")
                 st.info("These months show optimal vegetation health conditions.")
             
-            # Seasonal recommendations
-            st.subheader("📈 Seasonal Management Recommendations")
+            # Seasonal variability by farm
+            st.subheader("📊 Seasonal Variability by Farm")
             
-            seasonal_range = seasonal_avg.max() - seasonal_avg.min()
-            if seasonal_range > 0.2:
-                st.warning(f"High seasonal variability detected (range: {seasonal_range:.3f}). Consider:")
-                st.write("• Implementing seasonal irrigation adjustments")
-                st.write("• Planning maintenance during low-growth periods")
-                st.write("• Monitoring more closely during challenging months")
-            else:
-                st.success(f"Good seasonal stability (range: {seasonal_range:.3f}). Current management appears effective.")
+            farm_seasonal_data = []
+            for farm_name, data in all_farms_data.items():
+                monthly_df = data['monthly_data'].copy()
+                monthly_df['month'] = monthly_df.index.month
+                farm_seasonal = monthly_df.groupby('month')['NDVI'].agg(['mean', 'std']).reset_index()
+                farm_seasonal['farm'] = farm_name
+                farm_seasonal_data.append(farm_seasonal)
+            
+            if farm_seasonal_data:
+                all_farm_seasonal = pd.concat(farm_seasonal_data)
+                
+                fig_seasonal_farms = px.line(
+                    all_farm_seasonal,
+                    x='month',
+                    y='mean',
+                    color='farm',
+                    title="Seasonal Patterns by Farm",
+                    labels={'mean': 'Average NDVI', 'month': 'Month'}
+                )
+                
+                fig_seasonal_farms.update_xaxes(
+                    tickmode='array',
+                    tickvals=list(range(1, 13)),
+                    ticktext=[calendar.month_abbr[i] for i in range(1, 13)]
+                )
+                st.plotly_chart(fig_seasonal_farms, use_container_width=True)
     
     with tab4:
         st.header("Individual Farm Analysis")
@@ -564,7 +671,9 @@ def main():
                 col1, col2 = st.columns(2)
                 
                 with col1:
-                    csv_data = farm_data['raw_data'].to_csv()
+                    raw_data_for_export = farm_data['raw_data'].copy()
+                    raw_data_for_export.reset_index(inplace=True)
+                    csv_data = raw_data_for_export.to_csv(index=False)
                     st.download_button(
                         label=f"Download {selected_farm} Raw Data",
                         data=csv_data,
@@ -573,7 +682,9 @@ def main():
                     )
                 
                 with col2:
-                    monthly_csv = farm_data['monthly_data'].to_csv()
+                    monthly_data_for_export = farm_data['monthly_data'].copy()
+                    monthly_data_for_export.reset_index(inplace=True)
+                    monthly_csv = monthly_data_for_export.to_csv(index=False)
                     st.download_button(
                         label=f"Download {selected_farm} Monthly Summary",
                         data=monthly_csv,
@@ -581,13 +692,42 @@ def main():
                         mime="text/csv"
                     )
     
-    # Footer
-    st.markdown("---")
-    st.markdown(
-        "*Palm Farm Analytics Dashboard | "
-        f"Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | "
-        f"Data from {len(st.session_state.get('farms_data', {}))} farms*"
-    )
-
-if __name__ == "__main__":
-    main()
+    with tab5:
+        st.header("Performance Heatmap")
+        
+        # Create heatmap
+        heatmap_fig = create_portfolio_heatmap(all_farms_data)
+        if heatmap_fig:
+            st.plotly_chart(heatmap_fig, use_container_width=True)
+            
+            st.subheader("📊 Correlation Analysis")
+            
+            # Farm correlation analysis
+            correlation_data = []
+            for farm_name, data in all_farms_data.items():
+                monthly_df = data['monthly_data'].copy()
+                monthly_df['farm'] = farm_name
+                monthly_df['year_month'] = monthly_df.index.strftime('%Y-%m')
+                correlation_data.append(monthly_df[['farm', 'year_month', 'NDVI']])
+            
+            if correlation_data:
+                combined_corr = pd.concat(correlation_data)
+                corr_pivot = combined_corr.pivot(index='year_month', columns='farm', values='NDVI')
+                
+                # Calculate correlation matrix
+                correlation_matrix = corr_pivot.corr()
+                
+                fig_corr = px.imshow(
+                    correlation_matrix,
+                    title="Farm Performance Correlation Matrix",
+                    color_continuous_scale='RdBu',
+                    aspect='auto'
+                )
+                
+                fig_corr.update_layout(
+                    xaxis_title="Farm",
+                    yaxis_title="Farm",
+                    height=600
+                )
+                
+                st.plotly_chart(fig_corr, use_container_width=True)
