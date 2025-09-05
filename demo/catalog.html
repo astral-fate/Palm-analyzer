@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>كتالوج المنتجات المتقدم - أدوات التقييم الذكية</title>
+    <style>
+        :root {
+            --primary-green: #2E8B57;
+            --dark-green: #006400;
+            --light-green: #F0FFF0;
+            --brown: #8B4513;
+            --gold: #DAA520;
+            --blue: #4A90E2;
+            --purple: #8E44AD;
+            --orange: #F39C12;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Tajawal', sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            color: #333;
+            min-height: 100vh;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(45deg, #FFD700, #FFA500);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .tab {
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 25px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            background: white;
+            color: var(--dark-green);
+        }
+        
+        .tab.active {
+            background: linear-gradient(45deg, var(--primary-green), #3CB371);
+            color: white;
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+        }
+        
+        .tab:hover:not(.active) {
+            background: var(--light-green);
+        }
+        
+        .content {
+            display: none;
+        }
+        
+        .content.active {
+            display: block;
+            animation: fadeInUp 0.6s ease;
+        }
+        
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* Price Simulator Styles */
+        .price-simulator {
+            background: white;
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+        
+        .simulator-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .input-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .input-group label {
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+            color: var(--dark-green);
+        }
+        
+        .input-group select,
+        .input-group input {
+            padding: 1rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+        
+        .input-group select:focus,
+        .input-group input:focus {
+            outline: none;
+            border-color: var(--primary-green);
+        }
+        
+        .result-display {
+            background: linear-gradient(135deg, var(--light-green), #e8f5e8);
+            border-radius: 15px;
+            padding: 2rem;
+            text-align: center;
+            border: 2px solid var(--primary-green);
+        }
+        
+        .result-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: var(--dark-green);
+            margin-bottom: 0.5rem;
+        }
+        
+        .calculate-btn {
+            background: linear-gradient(45deg, var(--primary-green), #3CB371);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 25px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            font-size: 1.1rem;
+        }
+        
+        .calculate-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+        }
+        
+        /* Waste Assessment Styles */
+        .waste-assessment {
+            background: white;
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+        }
+        
+        .upload-area {
+            border: 3px dashed #ccc;
+            border-radius: 15px;
+            padding: 3rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .upload-area:hover {
+            border-color: var(--primary-green);
+            background: var(--light-green);
+        }
+        
+        .upload-area input[type="file"] {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+        
+        .upload-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            color: var(--primary-green);
+        }
+        
+        .preview-image {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 10px;
+            margin: 1rem 0;
+        }
+        
+        .analysis-results {
+            background: linear-gradient(135deg, #e8f4fd, #d1ecf1);
+            border-radius: 15px;
+            padding: 2rem;
+            margin-top: 2rem;
+        }
+        
+        .composition-chart {
+            width: 100%;
+            height: 30px;
+            border-radius: 15px;
+            overflow: hidden;
+            display: flex;
+            margin: 1rem 0;
+        }
+        
+        .composition-segment {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 0.8rem;
+        }
+        
+        .legend {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+        }
+        
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+        }
+        
+        /* Product Catalog Styles */
+        .catalog-filters {
+            background: white;
+            border-radius: 15px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        
+        .filter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            align-items: end;
+        }
+        
+        .product-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem;
+        }
+        
+        .product-card {
+            background: white;
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+            border: 2px solid transparent;
+        }
+        
+        .product-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--primary-green);
+        }
+        
+        .product-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 1.5rem;
+        }
+        
+        .product-icon {
+            font-size: 3rem;
+        }
+        
+        .product-price {
+            text-align: left;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: var(--primary-green);
+        }
+        
+        .product-title {
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: var(--dark-green);
+            margin-bottom: 1rem;
+        }
+        
+        .product-details {
+            margin-bottom: 1.5rem;
+        }
+        
+        .detail-row {
+            margin-bottom: 0.8rem;
+            line-height: 1.5;
+        }
+        
+        .detail-label {
+            font-weight: bold;
+            color: var(--brown);
+        }
+        
+        .product-actions {
+            display: flex;
+            gap: 1rem;
+        }
+        
+        .btn {
+            padding: 0.8rem 1.5rem;
+            border: none;
+            border-radius: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+        
+        .btn-primary {
+            background: var(--primary-green);
+            color: white;
+            flex: 1;
+        }
+        
+        .btn-secondary {
+            background: transparent;
+            color: var(--primary-green);
+            border: 2px solid var(--primary-green);
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        /* Advanced Calculator Styles */
+        .advanced-calculator {
+            background: white;
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+        }
+        
+        .calculator-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+        
+        .input-section {
+            space: 1.5rem;
+        }
+        
+        .results-section {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 15px;
+            padding: 2rem;
+        }
+        
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 0;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .metric-row:last-child {
+            border-bottom: none;
+        }
+        
+        .metric-value {
+            font-weight: bold;
+            color: var(--dark-green);
+        }
+        
+        .loading {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid var(--primary-green);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        @media (max-width: 768px) {
+            .calculator-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .simulator-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .product-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .tabs {
+                flex-direction: column;
+            }
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="header">
+        <h1>كتالوج المنتجات وأدوات التقييم الذكية</h1>
+        <p style="font-size: 1.2rem; opacity: 0.9;">منصة شاملة لتقييم وتسعير مخلفات النخيل باستخدام أحدث التقنيات</p>
+    </div>
+
+    <div class="container">
+        <!-- Navigation Tabs -->
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('simulator')">محاكي الأسعار السريع</button>
+            <button class="tab" onclick="switchTab('assessment')">تقييم المخلفات بالرؤية الحاسوبية</button>
+            <button class="tab" onclick="switchTab('calculator')">حاسبة الذكاء الاصطناعي</button>
+            <button class="tab" onclick="switchTab('catalog')">كتالوج المنتجات المتقدم</button>
+        </div>
+
+        <!-- Price Simulator -->
+        <div id="simulator" class="content active">
+            <div class="price-simulator">
+                <h2 style="text-align: center; margin-bottom: 2rem; color: var(--dark-green);">محاكي الأسعار السريع</h2>
+                <p style="text-align: center; margin-bottom: 2rem; color: #666;">احصل على تقدير فوري لقيمة مواد مخلفات النخيل</p>
+                
+                <div class="simulator-grid">
+                    <div class="input-group">
+                        <label>المادة</label>
+                        <select id="productSelect">
+                            <option value="psb_boards">🗂️ ألواح خيوط النخيل</option>
+                            <option value="bio_pellets">⚡ كريات الوقود الحيوي</option>
+                            <option value="date_oil">💄 زيت نوى التمر</option>
+                            <option value="biochar">🌱 الفحم الحيوي</option>
+                            <option value="activated_carbon">🧪 الكربون المنشط</option>
+                            <option value="nano_silica">🔬 النانو سيليكا</option>
+                        </select>
+                    </div>
+                    
+                    <div class="input-group">
+                        <label>الكمية</label>
+                        <input type="number" id="quantityInput" value="50" min="1" max="10000">
+                    </div>
+                    
+                    <div class="input-group">
+                        <label>المنطقة</label>
+                        <select id="regionSelect">
+                            <option value="riyadh">الرياض</option>
+                            <option value="qassim">القصيم</option>
+                            <option value="eastern">المنطقة الشرقية</option>
+                            <option value="western">المنطقة الغربية</option>
+                        </select>
+                    </div>
+                    
+                    <div class="result-display">
+                        <div class="result-value" id="priceResult">...</div>
+                        <div style="font-size: 1rem; color: #666;">القيمة التقديرية بالريال</div>
+                    </div>
+                </div>
+                
+                <button class="calculate-btn" onclick="calculatePrice()">احسب السعر التقديري</button>
+                <p style="text-align: center; margin-top: 1rem; font-size: 0.9rem; color: #666;">
+                    هذه الأرقام تقديرية وتعتمد على بيانات السوق الأساسية
+                </p>
+            </div>
+        </div>
+
+        <!-- Waste Assessment Tool -->
+        <div id="assessment" class="content">
+            <div class="waste-assessment">
+                <h2 style="text-align: center; margin-bottom: 2rem; color: var(--dark-green);">أداة تقييم المخلفات بالرؤية الحاسوبية</h2>
+                <p style="text-align: center; margin-bottom: 2rem; color: #666;">قم بتحميل صورة لمخلفات النخيل لتقدير قيمتها وتصنيفها آلياً</p>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; align-items: start;">
+                    <div>
+                        <div class="upload-area" onclick="document.getElementById('imageUpload').click()">
+                            <input type="file" id="imageUpload" accept="image/*" onchange="handleImageUpload(event)">
+                            <div class="upload-icon">📷</div>
+                            <h3>اسحب وأفلت الصورة هنا أو انقر للاختيار</h3>
+                            <p style="color: #666; margin-top: 1rem;">JPG, PNG, GIF حتى 10MB</p>
+                        </div>
+                        <img id="previewImage" class="preview-image" style="display: none;">
+                        
+                        <div id="analysisProgress" style="display: none; text-align: center; margin-top: 2rem;">
+                            <div class="loading">
+                                <div class="spinner"></div>
+                                <span>جاري التحليل... قد يستغرق هذا بضع ثوان</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="analysisResults" style="display: none;">
+                        <div class="analysis-results">
+                            <h4 style="color: var(--dark-green); margin-bottom: 1.5rem;">تقرير التقييم</h4>
+                            
+                            <div style="margin-bottom: 1.5rem;">
+                                <h5 style="margin-bottom: 1rem;">تحليل المكونات</h5>
+                                <div class="composition-chart" id="compositionChart"></div>
+                                <div class="legend" id="compositionLegend"></div>
+                            </div>
+                            
+                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
+                                <div style="background: white; padding: 1rem; border-radius: 8px; text-align: center;">
+                                    <div style="font-weight: bold;" id="moistureLevel">12%</div>
+                                    <div style="font-size: 0.9rem; color: #666;">الرطوبة</div>
+                                </div>
+                                <div style="background: white; padding: 1rem; border-radius: 8px; text-align: center;">
+                                    <div style="font-weight: bold;" id="purityLevel">95%</div>
+                                    <div style="font-size: 0.9rem; color: #666;">النقاء</div>
+                                </div>
+                                <div style="background: white; padding: 1rem; border-radius: 8px; text-align: center;">
+                                    <div style="font-weight: bold; color: var(--primary-green);" id="qualityGrade">A</div>
+                                    <div style="font-size: 0.9rem; color: #666;">الجودة</div>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <h5 style="margin-bottom: 1rem;">القيمة السوقية المحتملة</h5>
+                                <div id="potentialProducts"></div>
+                            </div>
+                            
+                            <div style="background: var(--primary-green); color: white; border-radius: 10px; padding: 1.5rem; text-align: center; margin-top: 1.5rem;">
+                                <div style="font-size: 1rem;">إجمالي القيمة التقديرية</div>
+                                <div style="font-size: 2rem; font-weight: bold;" id="totalValue">68,500 ريال سعودي</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Advanced AI Calculator -->
+        <div id="calculator" class="content">
+            <div class="advanced-calculator">
+                <h2 style="text-align: center; margin-bottom: 2rem; color: var(--dark-green);">حاسبة توقع الأسعار بالذكاء الاصطناعي</h2>
+                <p style="text-align: center; margin-bottom: 2rem; color: #666;">نموذج متقدم يحلل 50+ عامل سوقي لتوقع أسعار مخلفات النخيل</p>
+                
+                <div class="calculator-grid">
+                    <div class="input-section">
+                        <div style="margin-bottom: 2rem;">
+                            <div class="input-group">
+                                <label>اختر المنتج</label>
+                                <select id="aiProductSelect">
+                                    <option value="">-- اختر منتج --</option>
+                                    <option value="biochar">🌱 الفحم الحيوي</option>
+                                    <option value="psb_boards">🗂️ ألواح خيوط النخيل</option>
+                                    <option value="activated_carbon">🧪 الكربون المنشط</option>
+                                    <option value="nano_silica">🔬 النانو سيليكا</option>
+                                    <option value="bio_pellets">⚡ كريات الوقود الحيوي</option>
+                                    <option value="date_oil">💄 زيت نوى التمر</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-bottom: 2rem;">
+                            <div class="input-group">
+                                <label>الكمية</label>
+                                <input type="number" id="aiQuantityInput" value="100" min="1" max="10000">
+                            </div>
+                        </div>
+                        
+                        <div style="margin-bottom: 2rem;">
+                            <div class="input-group">
+                                <label>المنطقة</label>
+                                <select id="aiRegionSelect">
+                                    <option value="riyadh">الرياض</option>
+                                    <option value="qassim">القصيم</option>
+                                    <option value="eastern">المنطقة الشرقية</option>
+                                    <option value="western">المنطقة الغربية</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-bottom: 2rem;">
+                            <div class="input-group">
+                                <label>الموسم</label>
+                                <select id="seasonSelect">
+                                    <option value="winter">الشتاء</option>
+                                    <option value="spring">الربيع</option>
+                                    <option value="summer">الصيف</option>
+                                    <option value="autumn">الخريف</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <button class="calculate-btn" onclick="calculateAIPrice()" id="aiCalculateBtn">
+                            <span>احسب السعر المتوقع</span>
+                        </button>
+                    </div>
+                    
+                    <div class="results-section" id="aiResults" style="display: none;">
+                        <h4 style="color: var(--dark-green); margin-bottom: 1.5rem;">نتائج التوقع</h4>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                            <div style="text-align: center; background: white; padding: 1rem; border-radius: 8px;">
+                                <div style="font-size: 1.5rem; font-weight: bold; color: var(--primary-green);" id="predictedPrice">2,850</div>
+                                <div style="font-size: 0.9rem; color: #666;">السعر المتوقع</div>
+                                <div style="font-size: 0.8rem; color: #666;" id="priceUnit">ريال/طن</div>
+                            </div>
+                            <div style="text-align: center; background: white; padding: 1rem; border-radius: 8px;">
+                                <div style="font-size: 1.5rem; font-weight: bold; color: var(--blue);" id="totalValueAI">285,000</div>
+                                <div style="font-size: 0.9rem; color: #666;">القيمة الإجمالية</div>
+                                <div style="font-size: 0.8rem; color: #666;">ريال سعودي</div>
+                            </div>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                            <div style="text-align: center; background: white; padding: 1rem; border-radius: 8px;">
+                                <div style="font-size: 1.2rem; font-weight: bold; color: var(--purple);" id="expectedProfit">42,750</div>
+                                <div style="font-size: 0.9rem; color: #666;">الربح المتوقع</div>
+                                <div style="font-size: 0.8rem; color: var(--primary-green);" id="profitMargin">+15%</div>
+                            </div>
+                            <div style="text-align: center; background: white; padding: 1rem; border-radius: 8px;">
+                                <div style="font-size: 1.2rem; font-weight: bold; color: var(--orange);" id="confidence">92.3%</div>
+                                <div style="font-size: 0.9rem; color: #666;">دقة التوقع</div>
+                                <div style="font-size: 0.8rem; color: #666;">من النموذج</div>
+                            </div>
+                        </div>
+                        
+                        <div style="background: white; border-radius: 8px; padding: 1rem;">
+                            <div class="metric-row">
+                                <span>اتجاه السوق (6 شهور)</span>
+                                <span class="metric-value" style="color: var(--primary-green);" id="marketTrend">صاعد +8.2%</span>
+                            </div>
+                            <div class="metric-row">
+                                <span>التوصية</span>
+                                <span class="metric-value" id="recommendation" style="background: #e8f5e8; padding: 0.5rem; border-radius: 5px;">موصى بشدة</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Product Catalog -->
+        <div id="catalog" class="content">
+            <div class="catalog-filters">
+                <h2 style="margin-bottom: 1.5rem; color: var(--dark-green);">كتالوج المنتجات الشامل</h2>
+                <div class="filter-grid">
+                    <div class="input-group">
+                        <label>البحث</label>
+                        <input type="text" placeholder="ابحث عن منتج..." id="searchInput" onkeyup="filterProducts()">
+                    </div>
+                    <div class="input-group">
+                        <label>الفئة</label>
+                        <select id="categoryFilter" onchange="filterProducts()">
+                            <option value="all">جميع الفئات</option>
+                            <option value="building">مواد البناء</option>
+                            <option value="agriculture">منتجات زراعية</option>
+                            <option value="energy">طاقة ووقود</option>
+                            <option value="industrial">منتجات صناعية</option>
+                            <option value="cosmetics">تجميل وعناية</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>نطاق السعر</label>
+                        <select id="priceRange" onchange="filterProducts()">
+                            <option value="all">جميع الأسعار</option>
+                            <option value="low">أقل من 1,000 ريال</option>
+                            <option value="medium">1,000 - 5,000 ريال</option>
+                            <option value="high">أكثر من 5,000 ريال</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="product-grid" id="productGrid">
+                <!-- Products will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Product data
+        const materials = {
+            'psb_boards': { 
+                name: 'ألواح خيوط النخيل', 
+                unit: 'م³', 
+                basePrice: 1000, 
+                emoji: '🗂️',
+                category: 'building',
+                specifications: 'كثافة 600-800 كجم/م³، مقاومة الرطوبة 85%',
+                uses: 'الأثاث، الديكور الداخلي، الأرضيات',
+                buyers: 'شركات الأثاث، المقاولين، مصممي الديكور'
+            },
+            'bio_pellets': { 
+                name: 'كريات الوقود الحيوي', 
+                unit: 'طن', 
+                basePrice: 550, 
+                emoji: '⚡',
+                category: 'energy',
+                specifications: 'القيمة الحرارية 4,200-4,800 كيلو كالوري/كجم',
+                uses: 'محطات الطاقة، المصانع، الفنادق',
+                buyers: 'محطات الطاقة، المصانع، الفنادق'
+            },
+            'date_oil': { 
+                name: 'زيت نوى التمر', 
+                unit: 'لتر', 
+                basePrice: 225, 
+                emoji: '💄',
+                category: 'cosmetics',
+                specifications: 'درجة نقاء 95-98%',
+                uses: 'مرطب طبيعي، مقوي للشعر',
+                buyers: 'شركات مستحضرات التجميل'
+            },
+            'biochar': { 
+                name: 'الفحم الحيوي', 
+                unit: 'طن', 
+                basePrice: 1200, 
+                emoji: '🌱',
+                category: 'agriculture',
+                specifications: 'pH 7.5-8.5، مساحة سطح 300-500 م²/جم',
+                uses: 'تحسين التربة، الزراعة المائية',
+                buyers: 'المزارع الحديثة، مشاريع التشجير الحكومية'
+            },
+            'activated_carbon': { 
+                name: 'الكربون المنشط المتخصص', 
+                unit: 'طن', 
+                basePrice: 5000, 
+                emoji: '🧪',
+                category: 'industrial',
+                specifications: 'مساحة سطح 900-1200 م²/جم',
+                uses: 'تنقية المياه، الغازات الصناعية',
+                buyers: 'محطات تحلية المياه، الصناعات الكيماوية'
+            },
+            'nano_silica': { 
+                name: 'النانو سيليكا عالية النقاء', 
+                unit: 'طن', 
+                basePrice: 18000, 
+                emoji: '🔬',
+                category: 'industrial',
+                specifications: 'نقاء 98-99.5%، حجم الجسيمات 20-100 نانومتر',
+                uses: 'الخرسانة عالية الأداء، الطلاءات',
+                buyers: 'شركات الكيماويات المتخصصة'
+            }
+        };
+
+        const productData = {
+            'biochar': { 
+                basePrice: 1200, 
+                volatility: 0.15, 
+                seasonalFactors: { winter: 1.1, spring: 0.95, summer: 0.9, autumn: 1.05 }, 
+                regionalFactors: { riyadh: 1.0, qassim: 0.95, eastern: 1.05, western: 0.98 }, 
+                demandTrend: 0.08
+            },
+            'psb_boards': { 
+                basePrice: 1000, 
+                volatility: 0.12, 
+                seasonalFactors: { winter: 0.9, spring: 1.15, summer: 1.2, autumn: 0.95 }, 
+                regionalFactors: { riyadh: 1.05, qassim: 0.9, eastern: 1.0, western: 1.1 }, 
+                demandTrend: 0.12
+            },
+            'activated_carbon': { 
+                basePrice: 5000, 
+                volatility: 0.20, 
+                seasonalFactors: { winter: 1.05, spring: 1.0, summer: 0.95, autumn: 1.0 }, 
+                regionalFactors: { riyadh: 1.0, qassim: 0.85, eastern: 1.15, western: 0.95 }, 
+                demandTrend: 0.15
+            },
+            'nano_silica': { 
+                basePrice: 18000, 
+                volatility: 0.25, 
+                seasonalFactors: { winter: 1.0, spring: 1.1, summer: 1.05, autumn: 0.95 }, 
+                regionalFactors: { riyadh: 1.1, qassim: 0.8, eastern: 1.2, western: 1.0 }, 
+                demandTrend: 0.18
+            },
+            'bio_pellets': { 
+                basePrice: 550, 
+                volatility: 0.18, 
+                seasonalFactors: { winter: 1.25, spring: 0.9, summer: 0.8, autumn: 1.1 }, 
+                regionalFactors: { riyadh: 1.0, qassim: 0.9, eastern: 1.1, western: 0.95 }, 
+                demandTrend: 0.10
+            },
+            'date_oil': { 
+                basePrice: 225, 
+                volatility: 0.22, 
+                seasonalFactors: { winter: 0.95, spring: 1.1, summer: 1.15, autumn: 1.0 }, 
+                regionalFactors: { riyadh: 1.05, qassim: 1.1, eastern: 0.95, western: 1.0 }, 
+                demandTrend: 0.14
+            }
+        };
+
+        let currentTab = 'simulator';
+
+        function switchTab(tabName) {
+            // Hide all content
+            document.querySelectorAll('.content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Remove active class from all tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected content
+            document.getElementById(tabName).classList.add('active');
+            
+            // Add active class to selected tab
+            event.target.classList.add('active');
+            
+            currentTab = tabName;
+            
+            // Initialize catalog if switching to catalog tab
+            if (tabName === 'catalog') {
+                initializeCatalog();
+            }
+        }
+
+        function calculatePrice() {
+            const product = document.getElementById('productSelect').value;
+            const quantity = parseInt(document.getElementById('quantityInput').value);
+            const region = document.getElementById('regionSelect').value;
+            
+            if (!product || !quantity) return;
+            
+            const material = materials[product];
+            let basePrice = material.basePrice;
+            
+            // Simple calculation with some variation
+            const regionMultiplier = { riyadh: 1.0, qassim: 0.95, eastern: 1.05, western: 0.98 };
+            const finalPrice = basePrice * regionMultiplier[region] * quantity;
+            
+            // Add some random variation
+            const variation = (Math.random() - 0.5) * 0.1 + 1;
+            const estimatedValue = Math.round(finalPrice * variation);
+            
+            document.getElementById('priceResult').textContent = estimatedValue.toLocaleString();
+        }
+
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const previewImage = document.getElementById('previewImage');
+                    previewImage.src = e.target.result;
+                    previewImage.style.display = 'block';
+                    
+                    // Start analysis simulation
+                    analyzeImage();
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function analyzeImage() {
+            document.getElementById('analysisProgress').style.display = 'block';
+            document.getElementById('analysisResults').style.display = 'none';
+            
+            setTimeout(() => {
+                // Mock analysis results
+                const composition = [
+                    { name: 'جريد النخيل', percentage: 65, color: '#10B981' },
+                    { name: 'ليف النخيل', percentage: 20, color: '#F59E0B' },
+                    { name: 'نوى التمر', percentage: 10, color: '#8B5CF6' },
+                    { name: 'شوائب أخرى', percentage: 5, color: '#EF4444' }
+                ];
+                
+                // Update composition chart
+                const chart = document.getElementById('compositionChart');
+                chart.innerHTML = '';
+                composition.forEach(item => {
+                    const segment = document.createElement('div');
+                    segment.className = 'composition-segment';
+                    segment.style.width = item.percentage + '%';
+                    segment.style.backgroundColor = item.color;
+                    segment.textContent = item.percentage > 10 ? item.percentage + '%' : '';
+                    chart.appendChild(segment);
+                });
+                
+                // Update legend
+                const legend = document.getElementById('compositionLegend');
+                legend.innerHTML = '';
+                composition.forEach(item => {
+                    const legendItem = document.createElement('div');
+                    legendItem.className = 'legend-item';
+                    legendItem.innerHTML = `
+                        <div class="legend-color" style="background-color: ${item.color}"></div>
+                        <span>${item.name}: ${item.percentage}%</span>
+                    `;
+                    legend.appendChild(legendItem);
+                });
+                
+                // Update potential products
+                const products = [
+                    { name: 'ألواح خيوط النخيل', value: 45000, emoji: '🗂️' },
+                    { name: 'الفحم الحيوي', value: 12000, emoji: '🌱' },
+                    { name: 'زيت نوى التمر', value: 8500, emoji: '💄' },
+                    { name: 'أعلاف حيوانية', value: 3000, emoji: '🐄' }
+                ];
+                
+                const productsList = document.getElementById('potentialProducts');
+                productsList.innerHTML = '';
+                products.forEach(product => {
+                    const productDiv = document.createElement('div');
+                    productDiv.style.cssText = 'display: flex; justify-content: space-between; align-items: center; background: white; padding: 0.8rem; border-radius: 8px; margin-bottom: 0.5rem;';
+                    productDiv.innerHTML = `
+                        <span>${product.emoji} ${product.name}</span>
+                        <span style="font-weight: bold;">${product.value.toLocaleString()} ريال</span>
+                    `;
+                    productsList.appendChild(productDiv);
+                });
+                
+                document.getElementById('analysisProgress').style.display = 'none';
+                document.getElementById('analysisResults').style.display = 'block';
+            }, 3000);
+        }
+
+        function calculateAIPrice() {
+            const selectedProduct = document.getElementById('aiProductSelect').value;
+            const quantity = parseInt(document.getElementById('aiQuantityInput').value);
+            const region = document.getElementById('aiRegionSelect').value;
+            const season = document.getElementById('seasonSelect').value;
+            
+            if (!selectedProduct) return;
+            
+            const btn = document.getElementById('aiCalculateBtn');
+            btn.innerHTML = '<div class="loading"><div class="spinner"></div><span>يحلل البيانات...</span></div>';
+            btn.disabled = true;
+            
+            setTimeout(() => {
+                const product = productData[selectedProduct];
+                const material = materials[selectedProduct];
+                
+                let predictedPrice = product.basePrice * 
+                    product.seasonalFactors[season] * 
+                    product.regionalFactors[region] * 
+                    (1 + (Math.random() - 0.5) * product.volatility) * 
+                    (1 + product.demandTrend);
+                
+                const volumeDiscount = quantity > 1000 ? 0.9 : quantity > 500 ? 0.95 : 1.0;
+                predictedPrice *= volumeDiscount;
+                
+                const totalValue = predictedPrice * quantity;
+                const profitMargin = 0.15 + (Math.random() * 0.1);
+                const expectedProfit = totalValue * profitMargin;
+                const confidence = 85 + Math.random() * 10;
+                
+                // Update results
+                document.getElementById('predictedPrice').textContent = Math.round(predictedPrice).toLocaleString();
+                document.getElementById('priceUnit').textContent = material.unit;
+                document.getElementById('totalValueAI').textContent = Math.round(totalValue).toLocaleString();
+                document.getElementById('expectedProfit').textContent = Math.round(expectedProfit).toLocaleString();
+                document.getElementById('profitMargin').textContent = '+' + (profitMargin * 100).toFixed(1) + '%';
+                document.getElementById('confidence').textContent = confidence.toFixed(1) + '%';
+                
+                const trendDirection = product.demandTrend > 0.1 ? 'صاعد' : 'مستقر';
+                const trendPercentage = (product.demandTrend * 100).toFixed(1);
+                document.getElementById('marketTrend').textContent = `${trendDirection} +${trendPercentage}%`;
+                
+                const recommendation = confidence > 90 ? 'موصى بشدة' : confidence > 85 ? 'موصى' : 'متوسط المخاطر';
+                document.getElementById('recommendation').textContent = recommendation;
+                
+                document.getElementById('aiResults').style.display = 'block';
+                
+                btn.innerHTML = '<span>احسب السعر المتوقع</span>';
+                btn.disabled = false;
+            }, 2000);
+        }
+
+        function initializeCatalog() {
+            const products = Object.entries(materials).map(([key, material]) => ({
+                id: key,
+                ...material,
+                priceRange: material.basePrice < 1000 ? 'low' : material.basePrice < 5000 ? 'medium' : 'high'
+            }));
+            
+            renderProducts(products);
+        }
+
+        function renderProducts(products) {
+            const grid = document.getElementById('productGrid');
+            grid.innerHTML = '';
+            
+            products.forEach(product => {
+                const productCard = document.createElement('div');
+                productCard.className = 'product-card';
+                productCard.innerHTML = `
+                    <div class="product-header">
+                        <div class="product-icon">${product.emoji}</div>
+                        <div class="product-price">${product.basePrice.toLocaleString()} ريال/${product.unit}</div>
+                    </div>
+                    <div class="product-title">${product.name}</div>
+                    <div class="product-details">
+                        <div class="detail-row">
+                            <span class="detail-label">المواصفات:</span> ${product.specifications}
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">الاستخدامات:</span> ${product.uses}
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">المشترون:</span> ${product.buyers}
+                        </div>
+                    </div>
+                    <div class="product-actions">
+                        <button class="btn btn-primary" onclick="requestQuote('${product.id}')">طلب عرض سعر</button>
+                        <button class="btn btn-secondary" onclick="viewDetails('${product.id}')">👁</button>
+                    </div>
+                `;
+                grid.appendChild(productCard);
+            });
+        }
+
+        function filterProducts() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const categoryFilter = document.getElementById('categoryFilter').value;
+            const priceFilter = document.getElementById('priceRange').value;
+            
+            const products = Object.entries(materials).map(([key, material]) => ({
+                id: key,
+                ...material,
+                priceRange: material.basePrice < 1000 ? 'low' : material.basePrice < 5000 ? 'medium' : 'high'
+            }));
+            
+            const filteredProducts = products.filter(product => {
+                const matchesSearch = product.name.toLowerCase().includes(searchTerm) ||
+                                    product.uses.toLowerCase().includes(searchTerm);
+                const matchesCategory = categoryFilter === 'all' || product.category === categoryFilter;
+                const matchesPrice = priceFilter === 'all' || product.priceRange === priceFilter;
+                
+                return matchesSearch && matchesCategory && matchesPrice;
+            });
+            
+            renderProducts(filteredProducts);
+        }
+
+        function requestQuote(productId) {
+            alert(`تم إرسال طلب عرض سعر لمنتج: ${materials[productId].name}`);
+        }
+
+        function viewDetails(productId) {
+            alert(`عرض تفاصيل منتج: ${materials[productId].name}`);
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            calculatePrice();
+            initializeCatalog();
+        });
+    </script>
+</body>
+</html>
