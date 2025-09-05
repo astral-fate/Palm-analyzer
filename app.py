@@ -108,7 +108,7 @@ def cluster_farm_performance(feature_df):
 
 
 if __name__ == "__main__":
-    df = pd.read_csv("consolidated_historical_2015_2025.csv")
+    df = pd.read_csv("/content/drive/MyDrive/palm/data/consolidated_historical_2015_2025.csv")
     yearly_data = engineer_yearly_features(df)
     clustered_data = cluster_farm_performance(yearly_data)
     
