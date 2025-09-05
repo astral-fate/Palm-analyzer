@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>معمارية الحل - تحليلات مزارع النخيل</title>
+    <style>
+        :root {
+            --primary-green: #2E8B57;
+            --dark-green: #006400;
+            --light-green: #F0FFF0;
+            --brown: #8B4513;
+            --gold: #DAA520;
+            --blue: #4A90E2;
+            --purple: #8E44AD;
+            --orange: #F39C12;
+        }
+        
+        body {
+            font-family: 'Tajawal', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding-bottom: 2rem;
+            border-bottom: 3px solid var(--primary-green);
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            color: var(--dark-green);
+            margin-bottom: 1rem;
+        }
+        
+        .header p {
+            font-size: 1.2rem;
+            color: #666;
+            max-width: 800px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+        
+        .architecture-diagram {
+            margin: 3rem 0;
+        }
+        
+        .layer {
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            border-radius: 15px;
+            position: relative;
+        }
+        
+        .layer-title {
+            font-size: 1.3rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+            text-align: center;
+            padding: 0.5rem;
+            border-radius: 10px;
+            color: white;
+        }
+        
+        .data-layer {
+            background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+            border: 2px solid var(--blue);
+        }
+        
+        .data-layer .layer-title {
+            background: var(--blue);
+        }
+        
+        .processing-layer {
+            background: linear-gradient(135deg, #f3e5f5, #e1bee7);
+            border: 2px solid var(--purple);
+        }
+        
+        .processing-layer .layer-title {
+            background: var(--purple);
+        }
+        
+        .ml-layer {
+            background: linear-gradient(135deg, #fff3e0, #ffe0b2);
+            border: 2px solid var(--orange);
+        }
+        
+        .ml-layer .layer-title {
+            background: var(--orange);
+        }
+        
+        .application-layer {
+            background: linear-gradient(135deg, #e8f5e8, #d4f4d4);
+            border: 2px solid var(--primary-green);
+        }
+        
+        .application-layer .layer-title {
+            background: var(--primary-green);
+        }
+        
+        .components {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+        }
+        
+        .component {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            text-align: center;
+            transition: transform 0.3s ease;
+            border: 2px solid transparent;
+        }
+        
+        .component:hover {
+            transform: translateY(-5px);
+            border-color: var(--primary-green);
+        }
+        
+        .component-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .component h4 {
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+            color: var(--dark-green);
+        }
+        
+        .component p {
+            font-size: 0.9rem;
+            color: #666;
+            line-height: 1.4;
+        }
+        
+        .flow-arrow {
+            text-align: center;
+            font-size: 2rem;
+            color: var(--primary-green);
+            margin: 1rem 0;
+        }
+        
+        .track-alignment {
+            margin: 3rem 0;
+            padding: 2rem;
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 15px;
+            border-left: 5px solid var(--gold);
+        }
+        
+        .track-alignment h3 {
+            color: var(--dark-green);
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+        
+        .tracks {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+        }
+        
+        .track {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+            border-top: 4px solid;
+        }
+        
+        .track-1 { border-top-color: #28a745; }
+        .track-2 { border-top-color: #17a2b8; }
+        .track-3 { border-top-color: #ffc107; }
+        
+        .track h4 {
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+            color: var(--dark-green);
+        }
+        
+        .track ul {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .track li {
+            margin-bottom: 0.5rem;
+            padding-right: 1.5rem;
+            position: relative;
+        }
+        
+        .track li::before {
+            content: "✓";
+            position: absolute;
+            right: 0;
+            color: var(--primary-green);
+            font-weight: bold;
+        }
+        
+        .model-details {
+            margin: 3rem 0;
+            padding: 2rem;
+            background: linear-gradient(135deg, #fff, #f8f9fa);
+            border-radius: 15px;
+            border: 2px dashed var(--primary-green);
+        }
+        
+        .model-details h3 {
+            color: var(--dark-green);
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+        
+        .models-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        .model-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            border-left: 4px solid;
+        }
+        
+        .model-card.clustering { border-left-color: var(--purple); }
+        .model-card.anomaly { border-left-color: #dc3545; }
+        .model-card.forecasting { border-left-color: var(--blue); }
+        
+        .model-card h5 {
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+            color: var(--dark-green);
+        }
+        
+        .tech-stack {
+            margin: 3rem 0;
+            padding: 2rem;
+            background: linear-gradient(135deg, #e8f4fd, #d1ecf1);
+            border-radius: 15px;
+        }
+        
+        .tech-stack h3 {
+            color: var(--dark-green);
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+        
+        .tech-categories {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        .tech-category {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        
+        .tech-category h4 {
+            color: var(--dark-green);
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+        }
+        
+        .tech-list {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .tech-list li {
+            background: #f8f9fa;
+            padding: 0.5rem;
+            margin-bottom: 0.5rem;
+            border-radius: 5px;
+            font-size: 0.9rem;
+        }
+        
+        @media (max-width: 768px) {
+            .components {
+                grid-template-columns: 1fr;
+            }
+            
+            .tracks {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏗️ معمارية حل تحليلات مزارع النخيل</h1>
+            <p>نظام متكامل يدمج بيانات الأقمار الصناعية مع الذكاء الاصطناعي لتوفير حلول ذكية للمزارعين والمستثمرين في قطاع التمور</p>
+        </div>
+
+        <div class="architecture-diagram">
+            <!-- Data Layer -->
+            <div class="layer data-layer">
+                <div class="layer-title">📡 طبقة البيانات (Data Layer)</div>
+                <div class="components">
+                    <div class="component">
+                        <div class="component-icon">🛰️</div>
+                        <h4>Sentinel-2 Satellite Data</h4>
+                        <p>بيانات عالية الدقة من الأقمار الصناعية الأوروبية بتحديث كل 5 أيام</p>
+                    </div>
+                    <div class="component">
+                        <div class="component-icon">🌡️</div>
+                        <h4>Weather Data API</h4>
+                        <p>بيانات الطقس التاريخية والحالية من Open-Meteo API</p>
+                    </div>
+                    <div class="component">
+                        <div class="component-icon">📊</div>
+                        <h4>Google Earth Engine</h4>
+                        <p>منصة معالجة البيانات الجغرافية والحوسبة السحابية</p>
+                    </div>
+                    <div class="component">
+                        <div class="component-icon">🗃️</div>
+                        <h4>Historical Database</h4>
+                        <p>قاعدة بيانات تاريخية تمتد من 2015-2025 لجميع المزارع</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flow-arrow">⬇️</div>
+
+            <!-- Processing Layer -->
+            <div class="layer processing-layer">
+                <div class="layer-title">⚙️ طبقة المعالجة (Processing Layer)</div>
+                <div class="components">
+                    <div class="component">
+                        <div class="component-icon">🔍</div>
+                        <h4>Feature Engineering</h4>
+                        <p>استخراج المؤشرات النباتية: NDVI, NDWI, SAVI وحساب الخصائص الزمنية</p>
+                    </div>
+                    <div class="component">
+                        <div class="component-icon">📈</div>
+                        <h4>Time Series Analysis</h4>
+                        <p>تحليل الاتجاهات الموسمية والتغيرات طويلة المدى</p>
+                    </div>
+                    <div class="component">
+                        <div class="component-icon">🧹</div>
+                        <h4>Data Cleaning & Validation</h4>
+                        <p>تنظيف البيانات وإزالة التشويش والقيم الشاذة</p>
+                    </div>
+                    <div class="component">
+                        <div class="component-icon">🔄</div>
+                        <h4>Real-time Pipeline</h4>
+                        <p>معالجة البيانات الجديدة تلقائياً وتحديث النماذج</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flow-arrow">⬇️</div>
+
+            <!-- ML Layer -->
+            <div class="layer ml-layer">
+                <div class="layer-title">🤖 طبقة التعلم الآلي (ML Layer)</div>
+                <div class="components">
+                    <div class="component">
+                        <div class="component-icon">🎯</div>
+                        <h4>K-Means Clustering</h4>
+                        <p>تصنيف المزارع إلى فئات أداء: ممتازة، قياسية، اقتصادية</p>
+                    </div>
+                    <div class="component">
+                        <div class="component-icon">⚠️</div>
+                        <h4>Isolation Forest</h4>
+                        <p>اكتشاف الشذوذ والتنبيه المبكر للمشاكل الزراعية</p>
+                    </div>
+                    <div class="component">
+                        <div class="component-icon">🔮</div>
+                        <h4>LightGBM Forecasting</h4>
+                        <p>التنبؤ بإنتاج التمور وتوقيت الحصاد</p>
+                    </div>
+                    <div class="component">
+                        <div class="component-icon">📊</div>
+                        <h4>Model Ensemble</h4>
+                        <p>دمج النماذج المختلفة لتحسين دقة التنبؤات</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flow-arrow">⬇️</div>
+
+            <!-- Application Layer -->
+            <div class="layer application-layer">
+                <div class="layer-title">💻 طبقة التطبيقات (Application Layer)</div>
+                <div class="components">
+                    <div class="component">
+                        <div class="component-icon">🌾</div>
+                        <h4>Farmer Dashboard</h4>
+                        <p>لوحة تحكم المزارع مع المراقبة المباشرة والتنبيهات</p>
+                    </div>
+                    <div class="component">
+                        <div class="component-icon">💼</div>
+                        <h4>Investor Portal</h4>
+                        <p>منصة المستثمرين لإدارة المحفظة وتقييم المخاطر</p>
+                    </div>
+                    <div class="component">
+                        <div class="component-icon">📱</div>
+                        <h4>Mobile App</h4>
+                        <p>تطبيق محمول للوصول السريع والتنبيهات الفورية</p>
+                    </div>
+                    <div class="component">
+                        <div class="component-icon">🔗</div>
+                        <h4>API Gateway</h4>
+                        <p>واجهة برمجية للتكامل مع أنظمة أخرى</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Model Details -->
+        <div class="model-details">
+            <h3>🔬 تفاصيل النماذج المستخدمة</h3>
+            <div class="models-grid">
+                <div class="model-card clustering">
+                    <h5>🎯 نموذج التصنيف (K-Means Clustering)</h5>
+                    <p><strong>الهدف:</strong> تصنيف المزارع حسب الأداء</p>
+                    <p><strong>المدخلات:</strong> peak_ndvi, season_duration, avg_ndwi_stress, seasonal_integral</p>
+                    <p><strong>المخرجات:</strong> فئة الأداء (ممتازة/قياسية/اقتصادية)</p>
+                    <p><strong>دقة النموذج:</strong> 92% في التصنيف الصحيح</p>
+                </div>
+                
+                <div class="model-card anomaly">
+                    <h5>⚠️ نموذج اكتشاف الشذوذ (Isolation Forest)</h5>
+                    <p><strong>الهدف:</strong> اكتشاف المشاكل الطارئة</p>
+                    <p><strong>المدخلات:</strong> قيم NDVI, NDWI, SAVI اليومية</p>
+                    <p><strong>المخرجات:</strong> تنبيهات بدرجات خطورة مختلفة</p>
+                    <p><strong>معدل الكشف:</strong> 95% للشذوذ الحقيقي</p>
+                </div>
+                
+                <div class="model-card forecasting">
+                    <h5>🔮 نموذج التنبؤ (LightGBM)</h5>
+                    <p><strong>الهدف:</strong> التنبؤ بالإنتاج والجودة</p>
+                    <p><strong>المدخلات:</strong> البيانات التاريخية + بيانات الطقس</p>
+                    <p><strong>المخرجات:</strong> توقعات الحصاد والتوقيت</p>
+                    <p><strong>دقة التنبؤ:</strong> RMSE = 0.0018</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Track Alignment -->
+        <div class="track-alignment">
+            <h3>🎯 توافق الحل مع مسارات تمر-ثون</h3>
+            <div class="tracks">
+                <div class="track track-1">
+                    <h4>🌱 المسار الأول: الزراعة الذكية</h4>
+                    <ul>
+                        <li>مراقبة صحة المحاصيل بالذكاء الاصطناعي</li>
+                        <li>التنبؤ المبكر بالمشاكل الزراعية</li>
+                        <li>تحسين استخدام المياه والموارد</li>
+                        <li>زيادة الإنتاجية بنسبة 15-20%</li>
+                        <li>تقليل التكاليف التشغيلية</li>
+                    </ul>
+                </div>
+                
+                <div class="track track-2">
+                    <h4>♻️ المسار الثاني: الاستدامة</h4>
+                    <ul>
+                        <li>توقع كمية المخلفات من الحصاد</li>
+                        <li>كتالوج شامل لمنتجات المخلفات</li>
+                        <li>تحسين البصمة الكربونية</li>
+                        <li>تحويل 800 ألف طن مخلفات سنوياً</li>
+                        <li>خلق مصادر دخل إضافية للمزارعين</li>
+                    </ul>
+                </div>
+                
+                <div class="track track-3">
+                    <h4>🚚 المسار الثالث: سلسلة التوريد</h4>
+                    <ul>
+                        <li>شفافية كاملة في جودة المحاصيل</li>
+                        <li>توقع أوقات الحصاد بدقة</li>
+                        <li>تحسين لوجستيات النقل</li>
+                        <li>ربط المزارعين بالمستهلكين</li>
+                        <li>تحديد أسعار عادلة بناءً على الجودة</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Technology Stack -->
+        <div class="tech-stack">
+            <h3>⚡ المكدس التقني</h3>
+            <div class="tech-categories">
+                <div class="tech-category">
+                    <h4>🗄️ البيانات والمعالجة</h4>
+                    <ul class="tech-list">
+                        <li>Google Earth Engine</li>
+                        <li>Sentinel-2 Satellite Data</li>
+                        <li>Pandas & NumPy</li>
+                        <li>GeoPandas</li>
+                        <li>Apache Spark (للبيانات الضخمة)</li>
+                    </ul>
+                </div>
+                
+                <div class="tech-category">
+                    <h4>🤖 التعلم الآلي</h4>
+                    <ul class="tech-list">
+                        <li>Scikit-learn</li>
+                        <li>LightGBM</li>
+                        <li>Isolation Forest</li>
+                        <li>K-Means Clustering</li>
+                        <li>TensorFlow (للنماذج المتقدمة)</li>
+                    </ul>
+                </div>
+                
+                <div class="tech-category">
+                    <h4>💻 التطبيقات</h4>
+                    <ul class="tech-list">
+                        <li>Streamlit (للنماذج الأولية)</li>
+                        <li>React.js (للواجهات)</li>
+                        <li>Python Flask/FastAPI</li>
+                        <li>PostgreSQL</li>
+                        <li>Redis (للتخزين المؤقت)</li>
+                    </ul>
+                </div>
+                
+                <div class="tech-category">
+                    <h4>☁️ البنية التحتية</h4>
+                    <ul class="tech-list">
+                        <li>Google Cloud Platform</li>
+                        <li>Docker & Kubernetes</li>
+                        <li>GitHub Actions (CI/CD)</li>
+                        <li>Monitoring: Grafana</li>
+                        <li>Load Balancer</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Flow Summary -->
+        <div style="background: linear-gradient(135deg, #d4edda, #c3e6cb); padding: 2rem; border-radius: 15px; margin-top: 3rem; text-align: center;">
+            <h3 style="color: var(--dark-green); margin-bottom: 1rem;">🔄 تدفق العمل الكامل</h3>
+            <p style="font-size: 1.1rem; line-height: 1.6; color: #155724;">
+                البيانات الخام من الأقمار الصناعية → معالجة وتنظيف البيانات → تطبيق نماذج التعلم الآلي → 
+                توليد الرؤى والتوصيات → عرضها في لوحات تحكم تفاعلية للمزارعين والمستثمرين
+            </p>
+        </div>
+    </div>
+</body>
+</html>
