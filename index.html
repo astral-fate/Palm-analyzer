@@ -139,7 +139,43 @@
             margin-bottom: 1rem;
             color: var(--dark-green);
         }
-        
+
+        /* Styles for the new "How It Works" section */
+        .process-step {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 3rem;
+            align-items: center;
+            margin-bottom: 5rem;
+        }
+
+        .process-step:nth-child(3) .process-text { /* Use 3 because of the <p> tag */
+            order: 2;
+        }
+
+        .process-text h3 {
+            font-size: 1.8rem;
+            color: var(--dark-green);
+            margin-bottom: 1rem;
+        }
+
+        .process-image img, .process-image-grid img {
+            width: 100%;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            transition: transform 0.3s ease;
+        }
+
+        .process-image img:hover, .process-image-grid img:hover {
+            transform: scale(1.03);
+        }
+
+        .process-image-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+        }
+
         .benefits-section {
             background: var(--light-green);
         }
@@ -243,6 +279,22 @@
             }
         }
         
+        @media (max-width: 992px) {
+            .process-step, .process-step:nth-child(3) {
+                grid-template-columns: 1fr;
+            }
+            .process-step:nth-child(3) .process-text {
+                order: 0; /* Reset order for mobile */
+            }
+            .process-text {
+                text-align: center;
+            }
+            .process-text .benefit-list {
+                text-align: right;
+                display: inline-block; /* Center the list block */
+            }
+        }
+
         @media (max-width: 768px) {
             .hero h1 {
                 font-size: 2.5rem;
@@ -260,14 +312,6 @@
                 flex-direction: column;
                 align-items: center;
             }
-        }
-        
-        .notification-banner {
-            background: linear-gradient(90deg, var(--gold), #FFA500);
-            color: white;
-            text-align: center;
-            padding: 1rem;
-            font-weight: bold;
         }
         
         .demo-preview {
@@ -319,7 +363,6 @@
 </head>
 <body>
  
-
     <section class="hero">
         <div class="hero-content">
             <h1>🌴 الذكاء الاصطناعي لمزارع النخيل</h1>
@@ -378,6 +421,66 @@
         </div>
     </section>
 
+    <!-- NEW "HOW IT WORKS" SECTION -->
+    <section class="section" id="how-it-works">
+        <div class="container">
+            <h2 class="section-title">من البيانات الخام إلى رؤى قابلة للتنفيذ</h2>
+            <p style="text-align:center; max-width: 800px; margin: -2rem auto 4rem auto;">
+                نتبع عملية دقيقة من ثلاث مراحل لتحويل صور الأقمار الصناعية المعقدة إلى لوحات تحكم سهلة الفهم وقوية لاتخاذ القرارات.
+            </p>
+    
+            <!-- Step 1: Data Gathering -->
+            <div class="process-step">
+                <div class="process-text">
+                    <h3>المرحلة الأولى: جمع البيانات من Google Earth Engine</h3>
+                    <p>
+                        نبدأ بجمع بيانات صور الأقمار الصناعية عالية الدقة من Sentinel-2 عبر منصة Google Earth Engine. نقوم بتحديد كل مزرعة بدقة، ثم نسترجع البيانات التاريخية والحديثة، مع التركيز على المؤشرات النباتية الأولية التي تقيس صحة النباتات والانعكاسات الطيفية المختلفة.
+                    </p>
+                </div>
+                <div class="process-image">
+                    <img src="images/satalite.png" alt="جمع البيانات من Google Earth Engine عبر تحديد المزرعة على الخريطة">
+                </div>
+            </div>
+    
+            <!-- Step 2: Feature Engineering -->
+            <div class="process-step">
+                <div class="process-text">
+                    <h3>المرحلة الثانية: هندسة السمات الزراعية</h3>
+                    <p>
+                        نحول البيانات الأولية إلى مقاييس زراعية ذات معنى. نقوم بحساب مؤشرات متعددة:
+                    </p>
+                    <ul class="benefit-list">
+                        <li><strong>NDVI (الصحة):</strong> مؤشر صحة النباتات العام وكثافة الغطاء النباتي.</li>
+                        <li><strong>NDWI (الماء):</strong> يكشف عن مستويات الإجهاد المائي في النباتات.</li>
+                        <li><strong>SAVI (التربة):</strong> يقيس صحة النبات مع تقليل تأثير التربة المحيطة.</li>
+                    </ul>
+                     <p>هذه العملية تحول الأرقام المجردة إلى خريطة صحة ملونة، مما يسهل تحديد المناطق القوية والضعيفة داخل المزرعة.</p>
+                </div>
+                <div class="process-image">
+                    <img src="images/features.png" alt="خريطة صحة المزرعة (NDVI) تظهر المناطق الخضراء والحمراء">
+                </div>
+            </div>
+    
+            <!-- Step 3: Model Training -->
+            <div class="process-step">
+                <div class="process-text">
+                    <h3>المرحلة الثالثة: تدريب النماذج ونشرها</h3>
+                    <p>
+                        نستخدم البيانات المحولة لتدريب نموذجين رئيسيين:
+                        <strong>نموذج التجميع (K-Means):</strong> يصنف أداء المزرعة السنوي إلى فئات (ممتازة، قياسية، اقتصادية) بناءً على مقاييس الأداء الرئيسية.
+                        <strong>نموذج التنبؤ (LightGBM):</strong> يتوقع صحة المحاصيل المستقبلية (NDVI) بدقة عالية، مما يسمح بالإدارة الاستباقية واتخاذ قرارات مبكرة.
+                    </p>
+                </div>
+                <div class="process-image-grid">
+                     <img src="images/NVD.png" alt="رسم بياني يوضح أداء نموذج التنبؤ مقارنة بالبيانات الفعلية">
+                     <img src="images/forcasting.png" alt="رسم بياني يوضح التنبؤ بصحة المحاصيل لمدة 90 يومًا قادمة">
+                </div>
+            </div>
+        </div>
+    </section>
+    <!-- END OF NEW SECTION -->
+
+
     <section class="section benefits-section">
         <div class="container">
             <h2 class="section-title">حل واحد، قيمة مضاعفة</h2>
@@ -426,8 +529,8 @@
                     <div class="stat-label">دقة التنبؤ</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-number">3</div>
-                    <div class="stat-label">مسارات تمر-ثون</div>
+                    <div class="stat-label">مساهمة في</div>
+                    <div class="stat-number">تمر-ثون 2025</div>
                 </div>
             </div>
         </div>
@@ -507,7 +610,7 @@
             });
         }, observerOptions);
 
-        document.querySelectorAll('.feature-card, .benefit-card').forEach(el => {
+        document.querySelectorAll('.feature-card, .benefit-card, .process-step').forEach(el => {
             el.style.opacity = '0';
             el.style.transform = 'translateY(30px)';
             el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
