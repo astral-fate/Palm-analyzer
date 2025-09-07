@@ -78,6 +78,11 @@ This model acts as an early warning system for farmers.
 *   **How it Works:** The model learns the "normal" patterns of NDVI for each farm. Any data point that deviates significantly from this normal pattern is flagged as an anomaly.
 *   **Results:** The model successfully identified 1,129 potential anomalies, allowing us to pinpoint specific dates and farms where health readings were statistically unusual and warranted further investigation.
 
+
+<img width="1918" height="1078" alt="forcasting" src="https://github.com/user-attachments/assets/3f05eb0b-8f53-48e0-8e19-ab3d592dc211" />
+
+
+
 ## 5. Hackathon Track Applications
 
 Our model pipeline directly feeds into solutions for all three Tamra-Thon tracks:
@@ -97,16 +102,5 @@ Our model pipeline directly feeds into solutions for all three Tamra-Thon tracks
     *   **Short-Term Trajectory:** The **7-Day Forecast** helps predict if a farm's health is trending up or down leading into the harvest period.
 *   **Market Transparency:** This data provides unprecedented transparency for buyers, helps farmers negotiate fair prices, and allows logistics operators to optimize their fleet for the predicted yield and timing.
 
-## Citation
 
-If this model helped your research, please cite our work:
-
-```bibtex
-@misc{tamra-thon-palm-analytics-2025,
-    author = {[Fatimah Emad Eldin, Al-Jawara Al-Harbi]},
-    title  = {{Palm Farm Analytics: Predictive Models for Smart Agriculture, Sustainability, and Supply Chain}},
-    month  = sep,
-    year   = {2025},
-    url    = {https://huggingface.co/spaces/FatimahEmadEldin/Farm-Performance-Score}
-}
 ```
