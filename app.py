@@ -46,13 +46,16 @@ st.markdown("""
 
 # --- 1. DATA AND MODEL LOADING (with Caching) ---
 
-def find_file(filename, search_paths=['./', './Data/']):
-    """Robustly finds a file in a list of search paths."""
+def find_file(filename, search_paths=['./', './Data/', './Model/']):
+    """
+    Robustly finds a file in a list of search paths.
+    ✨ FIX: Added './Model/' to the search paths.
+    """
     for path in search_paths:
         filepath = os.path.join(path, filename)
         if os.path.exists(filepath):
             return filepath
-    st.error(f"CRITICAL ERROR: Could not find '{filename}'. Please ensure it's in the root or './Data/' directory.")
+    st.error(f"CRITICAL ERROR: Could not find '{filename}'. Please ensure it's in one of the following directories: {search_paths}")
     return None
 
 @st.cache_resource
@@ -72,8 +75,11 @@ def load_models():
 
 @st.cache_data
 def load_data():
-    """Loads and caches the main farm dataset."""
-    data_path = find_file('consolidated_farm_data.csv')
+    """
+    Loads and caches the main farm dataset.
+    ✨ FIX: Changed to 'consolidated_palm_farm_data.csv' to match your file list.
+    """
+    data_path = find_file('consolidated_palm_farm_data.csv')
     if data_path is None:
         st.stop()
         
@@ -294,3 +300,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
