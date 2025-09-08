@@ -45,26 +45,19 @@ st.markdown("""
 
 
 # --- 1. DATA AND MODEL LOADING (with Caching) ---
-
-# ✨ FIX: Make file paths robust by using the script's absolute path
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def find_file(filename):
-    """
-    Robustly finds a file by searching in directories relative to the app's location.
-    """
-    # Define search paths relative to the app's directory
+    """Robustly finds a file by searching in directories relative to the app's location."""
     search_paths = [
-        os.path.join(SCRIPT_DIR),              # Project root
-        os.path.join(SCRIPT_DIR, 'Data'),      # ./Data/
-        os.path.join(SCRIPT_DIR, 'Model')      # ./Model/
+        os.path.join(SCRIPT_DIR),
+        os.path.join(SCRIPT_DIR, 'Data'),
+        os.path.join(SCRIPT_DIR, 'Model')
     ]
-    
     for path in search_paths:
         filepath = os.path.join(path, filename)
         if os.path.exists(filepath):
             return filepath
-            
     st.error(f"CRITICAL ERROR: Could not find '{filename}'. Looked in directories relative to the app script.")
     return None
 
@@ -74,10 +67,8 @@ def load_models():
     scaler_path = find_file('scaler.joblib')
     kmeans_path = find_file('kmeans_model.joblib')
     forecasting_path = find_file('forecasting_models.joblib')
-    
     if not all([scaler_path, kmeans_path, forecasting_path]):
         st.stop()
-
     scaler = joblib.load(scaler_path)
     kmeans_model = joblib.load(kmeans_path)
     forecasting_models = joblib.load(forecasting_path)
@@ -86,14 +77,31 @@ def load_models():
 @st.cache_data
 def load_data():
     """
-    Loads and caches the main farm dataset.
+    Loads and caches the main farm dataset, robustly handling the date column.
     """
     data_path = find_file('consolidated_palm_farm_data.csv')
     if data_path is None:
         st.stop()
         
     df = pd.read_csv(data_path)
-    df['timestamp'] = pd.to_datetime(df['timestamp'])
+    
+    # ✨ FIX: Automatically find and convert the date column
+    date_col_found = None
+    possible_date_cols = ['timestamp', 'Date', 'date']
+    for col in possible_date_cols:
+        if col in df.columns:
+            date_col_found = col
+            break
+            
+    if date_col_found:
+        df[date_col_found] = pd.to_datetime(df[date_col_found])
+        # Rename to 'timestamp' to ensure consistency across the app
+        if date_col_found != 'timestamp':
+            df.rename(columns={date_col_found: 'timestamp'}, inplace=True)
+    else:
+        st.error(f"CRITICAL ERROR: No date column found in the CSV. Looked for one of {possible_date_cols}.")
+        st.stop()
+
     return df
 
 # --- 2. CORE ANALYTICAL FUNCTIONS (from Gradio project) ---
@@ -180,7 +188,7 @@ def main():
     
     ALL_FARMS = sorted(df_historical['farm_name'].unique())
     FARM_COORDINATES = {
-        'alia': [24.434117, 39.624376], 'Abdula altazi': [24.499210, 39.661664],
+        'alia': [24.434117, 39.624376], 'Abdula altazi': [2.4499210, 39.661664],
         'albadr': [24.499454, 39.666633], 'alhabibah': [24.499002, 39.667079],
         'alia almadinah': [24.450111, 39.627500], 'almarbad': [24.442014, 39.628323],
         'alosba': [24.431591, 39.605149], 'abuonoq': [24.494620, 39.623123],
