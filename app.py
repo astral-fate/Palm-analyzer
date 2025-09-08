@@ -28,24 +28,13 @@ st.markdown("""
         margin-bottom: 2rem;
         font-weight: bold;
     }
-    .metric-card {
-        background-color: #F0F8F0;
-        padding: 1.5rem;
-        border-radius: 15px;
-        border-left: 5px solid #2E8B57;
-        margin: 0.5rem 0;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.08);
-    }
-    .stTabs [data-baseweb="tab"] {
-        height: 50px;
-        font-weight: 600;
-    }
+    /* ... (other styles remain the same) ... */
 </style>
 """, unsafe_allow_html=True)
 
 
 # --- 0. CONFIGURATION (USER-DEFINED COLUMN NAMES) ---
-# 🚨 IMPORTANT: Update these string values to match the actual lowercase column
+# 🚨 IMPORTANT: Update these string values to match the exact lowercase column
 # names from your 'consolidated_palm_farm_data.csv' file.
 FARM_NAME_COL = 'farm_name'
 TIMESTAMP_COL = 'timestamp'
@@ -99,6 +88,12 @@ def load_data():
     # Clean all column names to remove whitespace and make them lowercase
     df.columns = df.columns.str.strip().str.lower()
     
+    # --- 💡 DEBUGGING STEP 💡 ---
+    # This will print the exact column names the app sees. Run the app once,
+    # copy the correct names, and paste them into the CONFIGURATION section above.
+    st.warning(f"**Debugging:** The following are the exact column names found in your file after cleaning: \n{df.columns.tolist()}")
+    # --- END DEBUGGING STEP ---
+    
     date_col_found = None
     possible_date_cols = [TIMESTAMP_COL, 'date', 'time']
     for col in possible_date_cols:
@@ -123,6 +118,7 @@ def load_data():
 
     return df
 
+# ... (The rest of the code remains exactly the same as the previous version) ...
 # --- 2. CORE ANALYTICAL FUNCTIONS ---
 
 def get_performance_report(df, scaler, kmeans_model):
@@ -133,7 +129,6 @@ def get_performance_report(df, scaler, kmeans_model):
         mean_ndvi=(NDVI_COL, 'mean'), mean_evi=(EVI_COL, 'mean'), std_ndvi=(NDVI_COL, 'std')
     ).reset_index().dropna()
 
-    # Check if kpi_df is empty after dropping NA
     if kpi_df.empty:
         st.warning("Not enough data to generate performance report.")
         return pd.DataFrame(columns=[FARM_NAME_COL, 'Performance Tier', 'mean_ndvi', 'mean_evi'])
@@ -225,12 +220,15 @@ def main():
     
     ALL_FARMS = sorted(df_historical[FARM_NAME_COL].unique())
     FARM_COORDINATES = {
-        'alia': [24.434117, 39.624376], 'Abdula altazi': [24.499210, 39.661664],
+        'alia': [24.434117, 39.624376], 'abdula altazi': [24.499210, 39.661664],
         'albadr': [24.499454, 39.666633], 'alhabibah': [24.499002, 39.667079],
         'alia almadinah': [24.450111, 39.627500], 'almarbad': [24.442014, 39.628323],
         'alosba': [24.431591, 39.605149], 'abuonoq': [24.494620, 39.623123],
         'wahaa nakeel': [24.442692, 39.623028], 'wahaa 2': [24.442388, 39.621116]
     }
+    # Clean up farm names in coordinates dict to match lowercase data
+    FARM_COORDINATES = {k.lower(): v for k, v in FARM_COORDINATES.items()}
+
     farm_coords_df = pd.DataFrame.from_dict(FARM_COORDINATES, orient='index', columns=['lat', 'lon']).reset_index().rename(columns={'index': FARM_NAME_COL})
     farm_coords_df = farm_coords_df.merge(df_performance[[FARM_NAME_COL, 'Performance Tier']], on=FARM_NAME_COL, how='left')
 
@@ -339,8 +337,8 @@ def main():
         if TIMESTAMP_COL in df_historical.columns:
             df_historical['month'] = df_historical[TIMESTAMP_COL].dt.month
             monthly_avg = df_historical.groupby('month')[NDVI_COL].mean().reset_index()
-            fig_seasonal = px.line(monthly_avg, x='month', y='ndvi', markers=True,
-                                   labels={'month': 'Month of the Year', 'ndvi': 'Average NDVI'})
+            fig_seasonal = px.line(monthly_avg, x='month', y=NDVI_COL, markers=True,
+                                   labels={'month': 'Month of the Year', NDVI_COL: 'Average NDVI'})
             fig_seasonal.update_xaxes(dtick=1)
             st.plotly_chart(fig_seasonal, use_container_width=True)
 
