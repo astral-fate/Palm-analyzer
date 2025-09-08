@@ -240,7 +240,7 @@ def main():
     # Load model and data
     sra_model = load_models()
     with st.spinner("Loading enriched farm data..."):
-        df = load_enriched_data("consolidated_farm_data_enriched.csv")
+        df = load_enriched_data("consolidated_farm_data.csv")
         if df.empty:
             st.error("Data loading failed. Please check the required CSV file.")
             return
