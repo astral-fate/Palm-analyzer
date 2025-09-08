@@ -1,5 +1,4 @@
- 
-### **Updated `README.md` Content**
+
 
 [![Code](https://img.shields.io/badge/GitHub-View%20Code-blue)](https://github.com/astral-fate/palm-analyzer)
 [![HuggingFace](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Live%20Demo-yellow)](https://huggingface.co/spaces/FatimahEmadEldin/Farm-Performance-Score)
@@ -46,13 +45,61 @@ This model is the foundation of our strategic analysis. It objectively categoriz
     *   `ndvi_std_dev`: The stability of crop health. A lower value indicates more uniform and consistent growth.
 *   **Results:** The model successfully identified three distinct performance profiles. The centroids below show the average characteristics of each tier:
 
-| Tier             | peak_ndvi | peak_day (Day of Year) | season_duration (Days) | avg_ndwi_stress | seasonal_integral (Total Vigor) | ndvi_std_dev (Volatility) |
-| ---------------- | --------- | ---------------------- | ---------------------- | --------------- | ------------------------------- | ------------------------- |
-| **Premium Tier** | **0.574** | 324                    | **285**                | **-0.422**      | **18.65**                       | 0.193                     |
-| Standard Tier    | 0.072     | 46                     | 35                     | -0.197          | 2.46                            | **0.015**                 |
-| Economy Tier     | 0.066     | 352                    | 205                    | -0.217          | 0.32                            | 0.018                     |
 
-*The "Premium Tier" is clearly identifiable by its significantly higher peak health and overall vigor.*
+
+
+<img width="1776" height="1020" alt="image" src="https://github.com/user-attachments/assets/232e84b3-c790-45b3-b849-82879f821324" />
+
+
+
+
+## Performance Tier Clustering
+
+Farms were clustered into three performance tiers (**High**, **Medium**, **Low**) based on key vegetation metrics like **NDVI** (Normalized Difference Vegetation Index) and **EVI** (Enhanced Vegetation Index). This clustering helps identify the overall health and productivity of each farm.
+
+---
+
+## Forecasting Model Evaluation
+
+A forecasting model was trained for each farm to predict future vegetation index values. The model's accuracy was evaluated using two key metrics:
+
+* **R-squared ($R^2$)**: Indicates the proportion of variance in the dependent variable that is predictable from the independent variable(s). A value closer to **1.0** signifies a better fit.
+* **Mean Absolute Error (MAE)**: Measures the average magnitude of the errors in a set of predictions, without considering their direction. A lower value indicates higher accuracy.
+
+### Individual Farm Forecast Scores
+
+| Farm Name      | R² Score | MAE   |
+| :------------- | :------: | :---: |
+| alosba         |  0.980   | 0.008 |
+| Abdula altazi  |  0.973   | 0.007 |
+| abuonoq        |  0.964   | 0.011 |
+| albadr         |  0.960   | 0.008 |
+| alhabibah      |  0.956   | 0.008 |
+| wahaa 2        |  0.948   | 0.010 |
+| alia           |  0.942   | 0.007 |
+| alia almadinah |  0.941   | 0.006 |
+| wahaa nakeel   |  0.937   | 0.009 |
+| almarbad       |  0.922   | 0.005 |
+
+---
+
+## Final Performance Report
+
+The table below provides a comprehensive summary, ranking farms by their assigned performance tier and the R² score from their forecasting model. This offers a dual perspective on both **current quality** (Performance Tier) and **future predictability** (Forecast R²).
+
+| Farm Name      | Performance Tier | Mean NDVI | Mean EVI | Std NDVI | Forecast R² | Forecast MAE |
+| :------------- | :--------------: | :-------: | :------: | :------: | :---------: | :----------: |
+| Abdula altazi  |  Tier 1 (High)   |   0.345   |  0.797   |  0.077   |    0.973    |    0.007     |
+| abuonoq        |  Tier 1 (High)   |   0.399   |  0.980   |  0.084   |    0.964    |    0.011     |
+| alosba         | Tier 2 (Medium)  |   0.262   |  0.470   |  0.075   |    0.980    |    0.008     |
+| albadr         | Tier 2 (Medium)  |   0.248   |  0.608   |  0.062   |    0.960    |    0.008     |
+| alhabibah      | Tier 2 (Medium)  |   0.260   |  0.634   |  0.064   |    0.956    |    0.008     |
+| wahaa 2        | Tier 2 (Medium)  |   0.288   |  0.783   |  0.064   |    0.948    |    0.010     |
+| alia           | Tier 2 (Medium)  |   0.306   |  0.771   |  0.065   |    0.942    |    0.007     |
+| wahaa nakeel   | Tier 2 (Medium)  |   0.264   |  0.730   |  0.056   |    0.937    |    0.009     |
+| alia almadinah |   Tier 3 (Low)   |   0.218   |  0.566   |  0.046   |    0.941    |    0.006     |
+| almarbad       |   Tier 3 (Low)   |   0.149   |  0.374   |  0.028   |    0.922    |    0.005     |
+
 
 ### Part 2: Supervised Learning - 7-Day NDVI Forecasting
 
@@ -77,6 +124,9 @@ This model acts as an early warning system for farmers.
 *   **Methodology:** We use an **Isolation Forest** model, which is excellent at identifying rare and unusual data points.
 *   **How it Works:** The model learns the "normal" patterns of NDVI for each farm. Any data point that deviates significantly from this normal pattern is flagged as an anomaly.
 *   **Results:** The model successfully identified 1,129 potential anomalies, allowing us to pinpoint specific dates and farms where health readings were statistically unusual and warranted further investigation.
+
+
+![anamlydetection-ezgif com-video-to-gif-converter](https://github.com/user-attachments/assets/de7b033b-249b-4ebb-b66e-b7e966469e4d)
 
 
 <img width="1918" height="1078" alt="forcasting" src="https://github.com/user-attachments/assets/3f05eb0b-8f53-48e0-8e19-ab3d592dc211" />
