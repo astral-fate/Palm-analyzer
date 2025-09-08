@@ -1,0 +1,8 @@
+{
+  "farm_name": "abuonoq",
+  "total_observations": 188,
+  "date_range": "2022-01-01 08:03:05.233000 to 2024-12-26 08:03:11.032000",
+  "avg_ndvi": 0.47903432478295005,
+  "ndvi_range": "0.156 to 0.720",
+  "data_quality_score": 96.1230666861702
+}
