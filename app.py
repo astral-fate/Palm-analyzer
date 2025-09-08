@@ -44,6 +44,17 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
+# --- 0. CONFIGURATION (USER-DEFINED COLUMN NAMES) ---
+# 🚨 IMPORTANT: Update these string values to match the actual lowercase column
+# names from your 'consolidated_palm_farm_data.csv' file.
+FARM_NAME_COL = 'farm_name'
+TIMESTAMP_COL = 'timestamp'
+NDVI_COL = 'ndvi'
+EVI_COL = 'evi'
+NDWI_COL = 'ndwi'
+SAR_VV_COL = 'sar_vv'
+
+
 # --- 1. DATA AND MODEL LOADING (with Caching) ---
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -89,7 +100,7 @@ def load_data():
     df.columns = df.columns.str.strip().str.lower()
     
     date_col_found = None
-    possible_date_cols = ['timestamp', 'date', 'time']
+    possible_date_cols = [TIMESTAMP_COL, 'date', 'time']
     for col in possible_date_cols:
         if col in df.columns:
             date_col_found = col
@@ -97,10 +108,17 @@ def load_data():
             
     if date_col_found:
         df[date_col_found] = pd.to_datetime(df[date_col_found])
-        if date_col_found != 'timestamp':
-            df.rename(columns={date_col_found: 'timestamp'}, inplace=True)
+        if date_col_found != TIMESTAMP_COL:
+            df.rename(columns={date_col_found: TIMESTAMP_COL}, inplace=True)
     else:
         st.error(f"CRITICAL ERROR: No date column found. Looked for {possible_date_cols} after cleaning headers.")
+        st.stop()
+    
+    # Verify that essential columns exist after cleaning
+    required_cols = [FARM_NAME_COL, NDVI_COL, EVI_COL, NDWI_COL, SAR_VV_COL]
+    missing_cols = [col for col in required_cols if col not in df.columns]
+    if missing_cols:
+        st.error(f"CRITICAL ERROR: The following required columns are missing from your data file after cleaning: {missing_cols}. Please check the CONFIGURATION section in the script.")
         st.stop()
 
     return df
@@ -110,11 +128,16 @@ def load_data():
 def get_performance_report(df, scaler, kmeans_model):
     """
     Assigns farms to performance tiers using a K-Means clustering model.
-    ✨ FIX: Using lowercase column names ('ndvi', 'evi').
     """
-    kpi_df = df.groupby('farm_name').agg(
-        mean_ndvi=('ndvi', 'mean'), mean_evi=('evi', 'mean'), std_ndvi=('ndvi', 'std')
+    kpi_df = df.groupby(FARM_NAME_COL).agg(
+        mean_ndvi=(NDVI_COL, 'mean'), mean_evi=(EVI_COL, 'mean'), std_ndvi=(NDVI_COL, 'std')
     ).reset_index().dropna()
+
+    # Check if kpi_df is empty after dropping NA
+    if kpi_df.empty:
+        st.warning("Not enough data to generate performance report.")
+        return pd.DataFrame(columns=[FARM_NAME_COL, 'Performance Tier', 'mean_ndvi', 'mean_evi'])
+
     features = kpi_df[['mean_ndvi', 'mean_evi', 'std_ndvi']]
     scaled_features = scaler.transform(features)
     kpi_df['cluster'] = kmeans_model.predict(scaled_features)
@@ -122,22 +145,27 @@ def get_performance_report(df, scaler, kmeans_model):
     sorted_clusters = cluster_centers.sort_values(by='mean_ndvi', ascending=False).index
     tier_map = {sorted_clusters[0]: 'Tier 1 (High)', sorted_clusters[1]: 'Tier 2 (Medium)', sorted_clusters[2]: 'Tier 3 (Low)'}
     kpi_df['Performance Tier'] = kpi_df['cluster'].map(tier_map)
-    return kpi_df[['farm_name', 'Performance Tier', 'mean_ndvi', 'mean_evi']].sort_values('Performance Tier')
+    return kpi_df[[FARM_NAME_COL, 'Performance Tier', 'mean_ndvi', 'mean_evi']].sort_values('Performance Tier')
 
 def detect_and_classify_anomalies(df, farm_name):
     """
     Detects and classifies anomalies in NDVI data for a specific farm.
-    ✨ FIX: Using lowercase column names ('ndvi', 'ndwi', 'sar_vv').
     """
-    farm_data = df[df['farm_name'] == farm_name].set_index('timestamp').sort_index()
-    df_resampled = farm_data[['ndvi', 'ndwi', 'sar_vv']].resample('W').mean().interpolate(method='linear')
+    farm_data = df[df[FARM_NAME_COL] == farm_name].set_index(TIMESTAMP_COL).sort_index()
+    df_resampled = farm_data[[NDVI_COL, NDWI_COL, SAR_VV_COL]].resample('W').mean().interpolate(method='linear')
     df_change = df_resampled.diff().dropna()
+
+    if df_change.empty:
+        st.warning("Not enough data to detect anomalies for this farm.")
+        return pd.DataFrame(), go.Figure().update_layout(title=f'Not enough data for {farm_name}')
+
     rolling_std = df_change.rolling(window=12, min_periods=4).std()
-    thresholds = {'ndvi': rolling_std['ndvi'] * 1.5, 'ndwi': rolling_std['ndwi'] * 1.5, 'sar_vv': rolling_std['sar_vv'] * 1.5}
+    thresholds = {NDVI_COL: rolling_std[NDVI_COL] * 1.5, NDWI_COL: rolling_std[NDWI_COL] * 1.5, SAR_VV_COL: rolling_std[SAR_VV_COL] * 1.5}
     anomalies_found = []
+    
     for date, row in df_change.iterrows():
-        ndvi_change, ndwi_change, sar_vv_change = row['ndvi'], row['ndwi'], row['sar_vv']
-        ndvi_thresh, ndwi_thresh, sar_thresh = thresholds['ndvi'].get(date, 0.07), thresholds['ndwi'].get(date, 0.07), thresholds['sar_vv'].get(date, 1.0)
+        ndvi_change, ndwi_change, sar_vv_change = row[NDVI_COL], row[NDWI_COL], row[SAR_VV_COL]
+        ndvi_thresh, ndwi_thresh, sar_thresh = thresholds[NDVI_COL].get(date, 0.07), thresholds[NDWI_COL].get(date, 0.07), thresholds[SAR_VV_COL].get(date, 1.0)
         classification = "Normal"
         if ndvi_change < -ndvi_thresh and sar_vv_change < -sar_thresh:
             classification = 'Harvest Event'
@@ -149,7 +177,7 @@ def detect_and_classify_anomalies(df, farm_name):
             anomalies_found.append({'Date': date, 'Classification': classification, 'NDVI Change': f"{ndvi_change:.3f}"})
     
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=farm_data.index, y=farm_data['ndvi'], mode='lines', name='NDVI', line=dict(color='green')))
+    fig.add_trace(go.Scatter(x=farm_data.index, y=farm_data[NDVI_COL], mode='lines', name='NDVI', line=dict(color='green')))
     colors = {'Harvest Event': 'red', 'Potential Drought Stress': 'orange', 'General Stress Event': 'purple'}
     
     for anomaly in anomalies_found:
@@ -165,22 +193,21 @@ def detect_and_classify_anomalies(df, farm_name):
 def run_forecast(df, forecasting_models, farm_name):
     """
     Runs a 3-month NDVI forecast for a selected farm.
-    ✨ FIX: Using lowercase column names ('evi', 'ndwi', 'ndvi').
     """
     model = forecasting_models.get(farm_name)
     if not model:
         return None, None
-    last_date = df['timestamp'].max()
+    last_date = df[TIMESTAMP_COL].max()
     future_dates = pd.to_datetime(pd.date_range(start=last_date, periods=12, freq='W'))
     future_df = pd.DataFrame(index=future_dates)
     future_df['day_of_year'] = future_df.index.dayofyear
-    farm_data = df[df['farm_name'] == farm_name]
-    future_df['evi'] = farm_data['evi'].iloc[-1]
-    future_df['ndwi'] = farm_data['ndwi'].iloc[-1]
-    predictions = model.predict(future_df[['day_of_year', 'evi', 'ndwi']])
+    farm_data = df[df[FARM_NAME_COL] == farm_name]
+    future_df[EVI_COL] = farm_data[EVI_COL].iloc[-1]
+    future_df[NDWI_COL] = farm_data[NDWI_COL].iloc[-1]
+    predictions = model.predict(future_df[['day_of_year', EVI_COL, NDWI_COL]])
     
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=farm_data['timestamp'], y=farm_data['ndvi'], mode='lines', name='Historical NDVI', line=dict(color='green')))
+    fig.add_trace(go.Scatter(x=farm_data[TIMESTAMP_COL], y=farm_data[NDVI_COL], mode='lines', name='Historical NDVI', line=dict(color='green')))
     fig.add_trace(go.Scatter(x=future_dates, y=predictions, mode='lines', name='Forecasted NDVI', line=dict(color='red', dash='dash')))
     fig.update_layout(title=f'3-Month NDVI Forecast for {farm_name}', height=500)
     
@@ -196,7 +223,7 @@ def main():
     df_historical = load_data()
     df_performance = get_performance_report(df_historical, scaler, kmeans_model)
     
-    ALL_FARMS = sorted(df_historical['farm_name'].unique())
+    ALL_FARMS = sorted(df_historical[FARM_NAME_COL].unique())
     FARM_COORDINATES = {
         'alia': [24.434117, 39.624376], 'Abdula altazi': [24.499210, 39.661664],
         'albadr': [24.499454, 39.666633], 'alhabibah': [24.499002, 39.667079],
@@ -204,8 +231,8 @@ def main():
         'alosba': [24.431591, 39.605149], 'abuonoq': [24.494620, 39.623123],
         'wahaa nakeel': [24.442692, 39.623028], 'wahaa 2': [24.442388, 39.621116]
     }
-    farm_coords_df = pd.DataFrame.from_dict(FARM_COORDINATES, orient='index', columns=['lat', 'lon']).reset_index().rename(columns={'index':'farm_name'})
-    farm_coords_df = farm_coords_df.merge(df_performance[['farm_name', 'Performance Tier']], on='farm_name', how='left')
+    farm_coords_df = pd.DataFrame.from_dict(FARM_COORDINATES, orient='index', columns=['lat', 'lon']).reset_index().rename(columns={'index': FARM_NAME_COL})
+    farm_coords_df = farm_coords_df.merge(df_performance[[FARM_NAME_COL, 'Performance Tier']], on=FARM_NAME_COL, how='left')
 
     # --- Sidebar Filters ---
     st.sidebar.header("📋 Dashboard Filters")
@@ -228,9 +255,9 @@ def main():
         with col1:
             st.metric("Total Farms Analyzed", len(ALL_FARMS))
         with col2:
-            st.metric("Average Portfolio NDVI", f"{df_historical['ndvi'].mean():.3f}")
+            st.metric("Average Portfolio NDVI", f"{df_historical[NDVI_COL].mean():.3f}")
         with col3:
-            st.metric("Latest Data Point", df_historical['timestamp'].max().strftime('%Y-%m-%d'))
+            st.metric("Latest Data Point", df_historical[TIMESTAMP_COL].max().strftime('%Y-%m-%d'))
 
         st.markdown("---")
         
@@ -239,7 +266,7 @@ def main():
             st.markdown("##### Farm Locations by Performance Tier")
             color_map = {'Tier 1 (High)': 'green', 'Tier 2 (Medium)': 'orange', 'Tier 3 (Low)': 'red'}
             fig_map = px.scatter_mapbox(farm_coords_df, lat="lat", lon="lon", 
-                                      hover_name="farm_name",
+                                      hover_name=FARM_NAME_COL,
                                       hover_data=["Performance Tier"],
                                       color="Performance Tier",
                                       color_discrete_map=color_map,
@@ -292,16 +319,16 @@ def main():
     with tab4:
         st.subheader("Exploratory Data Analysis")
         
-        farm_stats = df_historical.groupby('farm_name').agg(
-            ndvi_mean=('ndvi', 'mean'),
-            ndvi_std=('ndvi', 'std'),
-            ndvi_count=('ndvi', 'count')
+        farm_stats = df_historical.groupby(FARM_NAME_COL).agg(
+            ndvi_mean=(NDVI_COL, 'mean'),
+            ndvi_std=(NDVI_COL, 'std'),
+            ndvi_count=(NDVI_COL, 'count')
         ).reset_index()
         farm_stats['health_score'] = (farm_stats['ndvi_mean'] * 0.7 + (1 - farm_stats['ndvi_std']) * 0.3) * 100
         farm_stats = farm_stats.sort_values('health_score', ascending=False)
         
         st.markdown("##### Farm Ranking by Health Score (NDVI Mean & Stability)")
-        fig_comp = px.bar(farm_stats, x='health_score', y='farm_name', orientation='h',
+        fig_comp = px.bar(farm_stats, x='health_score', y=FARM_NAME_COL, orientation='h',
                           color='health_score', color_continuous_scale='RdYlGn',
                           text='health_score')
         fig_comp.update_traces(texttemplate='%{text:.1f}', textposition='outside')
@@ -309,11 +336,11 @@ def main():
         st.plotly_chart(fig_comp, use_container_width=True)
         
         st.markdown("##### Seasonal NDVI Patterns (Portfolio Average)")
-        if 'timestamp' in df_historical.columns:
-            df_historical['month'] = df_historical['timestamp'].dt.month
-            monthly_avg = df_historical.groupby('month')['ndvi'].mean().reset_index()
+        if TIMESTAMP_COL in df_historical.columns:
+            df_historical['month'] = df_historical[TIMESTAMP_COL].dt.month
+            monthly_avg = df_historical.groupby('month')[NDVI_COL].mean().reset_index()
             fig_seasonal = px.line(monthly_avg, x='month', y='ndvi', markers=True,
-                                   labels={'month': 'Month of the Year', 'NDVI': 'Average NDVI'})
+                                   labels={'month': 'Month of the Year', 'ndvi': 'Average NDVI'})
             fig_seasonal.update_xaxes(dtick=1)
             st.plotly_chart(fig_seasonal, use_container_width=True)
 
@@ -324,4 +351,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
