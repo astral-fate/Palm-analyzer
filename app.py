@@ -28,20 +28,29 @@ st.markdown("""
         margin-bottom: 2rem;
         font-weight: bold;
     }
-    /* ... (other styles remain the same) ... */
+    .metric-card {
+        background-color: #F0F8F0;
+        padding: 1.5rem;
+        border-radius: 15px;
+        border-left: 5px solid #2E8B57;
+        margin: 0.5rem 0;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        font-weight: 600;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 
 # --- 0. CONFIGURATION (USER-DEFINED COLUMN NAMES) ---
-# 🚨 IMPORTANT: Update these string values to match the exact lowercase column
-# names from your 'consolidated_palm_farm_data.csv' file.
+# This section now matches the columns from your file.
 FARM_NAME_COL = 'farm_name'
-TIMESTAMP_COL = 'timestamp'
+TIMESTAMP_COL = 'time' # Using 'time' as per your file
 NDVI_COL = 'ndvi'
-EVI_COL = 'evi'
+SAVI_COL = 'savi' # Using 'savi' as a replacement for 'evi'
 NDWI_COL = 'ndwi'
-SAR_VV_COL = 'sar_vv'
 
 
 # --- 1. DATA AND MODEL LOADING (with Caching) ---
@@ -88,14 +97,8 @@ def load_data():
     # Clean all column names to remove whitespace and make them lowercase
     df.columns = df.columns.str.strip().str.lower()
     
-    # --- 💡 DEBUGGING STEP 💡 ---
-    # This will print the exact column names the app sees. Run the app once,
-    # copy the correct names, and paste them into the CONFIGURATION section above.
-    st.warning(f"**Debugging:** The following are the exact column names found in your file after cleaning: \n{df.columns.tolist()}")
-    # --- END DEBUGGING STEP ---
-    
     date_col_found = None
-    possible_date_cols = [TIMESTAMP_COL, 'date', 'time']
+    possible_date_cols = [TIMESTAMP_COL, 'date', 'timestamp']
     for col in possible_date_cols:
         if col in df.columns:
             date_col_found = col
@@ -110,7 +113,7 @@ def load_data():
         st.stop()
     
     # Verify that essential columns exist after cleaning
-    required_cols = [FARM_NAME_COL, NDVI_COL, EVI_COL, NDWI_COL, SAR_VV_COL]
+    required_cols = [FARM_NAME_COL, NDVI_COL, SAVI_COL, NDWI_COL]
     missing_cols = [col for col in required_cols if col not in df.columns]
     if missing_cols:
         st.error(f"CRITICAL ERROR: The following required columns are missing from your data file after cleaning: {missing_cols}. Please check the CONFIGURATION section in the script.")
@@ -118,36 +121,40 @@ def load_data():
 
     return df
 
-# ... (The rest of the code remains exactly the same as the previous version) ...
 # --- 2. CORE ANALYTICAL FUNCTIONS ---
 
 def get_performance_report(df, scaler, kmeans_model):
     """
     Assigns farms to performance tiers using a K-Means clustering model.
     """
+    # Updated to use SAVI instead of EVI
     kpi_df = df.groupby(FARM_NAME_COL).agg(
-        mean_ndvi=(NDVI_COL, 'mean'), mean_evi=(EVI_COL, 'mean'), std_ndvi=(NDVI_COL, 'std')
+        mean_ndvi=(NDVI_COL, 'mean'), mean_savi=(SAVI_COL, 'mean'), std_ndvi=(NDVI_COL, 'std')
     ).reset_index().dropna()
 
     if kpi_df.empty:
         st.warning("Not enough data to generate performance report.")
-        return pd.DataFrame(columns=[FARM_NAME_COL, 'Performance Tier', 'mean_ndvi', 'mean_evi'])
+        return pd.DataFrame(columns=[FARM_NAME_COL, 'Performance Tier', 'mean_ndvi', 'mean_savi'])
 
-    features = kpi_df[['mean_ndvi', 'mean_evi', 'std_ndvi']]
+    # The features must match what the model was trained on. Assuming it was ('ndvi', 'evi', 'std_ndvi')
+    # We rename our 'mean_savi' to 'mean_evi' just for the model prediction step.
+    features = kpi_df[['mean_ndvi', 'mean_savi', 'std_ndvi']].rename(columns={'mean_savi': 'mean_evi'})
+    
     scaled_features = scaler.transform(features)
     kpi_df['cluster'] = kmeans_model.predict(scaled_features)
     cluster_centers = pd.DataFrame(scaler.inverse_transform(kmeans_model.cluster_centers_), columns=['mean_ndvi', 'mean_evi', 'std_ndvi'])
     sorted_clusters = cluster_centers.sort_values(by='mean_ndvi', ascending=False).index
     tier_map = {sorted_clusters[0]: 'Tier 1 (High)', sorted_clusters[1]: 'Tier 2 (Medium)', sorted_clusters[2]: 'Tier 3 (Low)'}
     kpi_df['Performance Tier'] = kpi_df['cluster'].map(tier_map)
-    return kpi_df[[FARM_NAME_COL, 'Performance Tier', 'mean_ndvi', 'mean_evi']].sort_values('Performance Tier')
+    return kpi_df[[FARM_NAME_COL, 'Performance Tier', 'mean_ndvi', 'mean_savi']].sort_values('Performance Tier')
 
 def detect_and_classify_anomalies(df, farm_name):
     """
     Detects and classifies anomalies in NDVI data for a specific farm.
     """
     farm_data = df[df[FARM_NAME_COL] == farm_name].set_index(TIMESTAMP_COL).sort_index()
-    df_resampled = farm_data[[NDVI_COL, NDWI_COL, SAR_VV_COL]].resample('W').mean().interpolate(method='linear')
+    # Simplified because SAR_VV is not available
+    df_resampled = farm_data[[NDVI_COL, NDWI_COL]].resample('W').mean().interpolate(method='linear')
     df_change = df_resampled.diff().dropna()
 
     if df_change.empty:
@@ -155,16 +162,15 @@ def detect_and_classify_anomalies(df, farm_name):
         return pd.DataFrame(), go.Figure().update_layout(title=f'Not enough data for {farm_name}')
 
     rolling_std = df_change.rolling(window=12, min_periods=4).std()
-    thresholds = {NDVI_COL: rolling_std[NDVI_COL] * 1.5, NDWI_COL: rolling_std[NDWI_COL] * 1.5, SAR_VV_COL: rolling_std[SAR_VV_COL] * 1.5}
+    thresholds = {NDVI_COL: rolling_std[NDVI_COL] * 1.5, NDWI_COL: rolling_std[NDWI_COL] * 1.5}
     anomalies_found = []
     
     for date, row in df_change.iterrows():
-        ndvi_change, ndwi_change, sar_vv_change = row[NDVI_COL], row[NDWI_COL], row[SAR_VV_COL]
-        ndvi_thresh, ndwi_thresh, sar_thresh = thresholds[NDVI_COL].get(date, 0.07), thresholds[NDWI_COL].get(date, 0.07), thresholds[SAR_VV_COL].get(date, 1.0)
+        ndvi_change, ndwi_change = row[NDVI_COL], row[NDWI_COL]
+        ndvi_thresh, ndwi_thresh = thresholds[NDVI_COL].get(date, 0.07), thresholds[NDWI_COL].get(date, 0.07)
         classification = "Normal"
-        if ndvi_change < -ndvi_thresh and sar_vv_change < -sar_thresh:
-            classification = 'Harvest Event'
-        elif ndvi_change < -ndvi_thresh and ndwi_change < -ndwi_thresh:
+        # Removed 'Harvest Event' classification since SAR_VV is missing
+        if ndvi_change < -ndvi_thresh and ndwi_change < -ndwi_thresh:
             classification = 'Potential Drought Stress'
         elif ndvi_change < -ndvi_thresh:
             classification = 'General Stress Event'
@@ -173,7 +179,7 @@ def detect_and_classify_anomalies(df, farm_name):
     
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=farm_data.index, y=farm_data[NDVI_COL], mode='lines', name='NDVI', line=dict(color='green')))
-    colors = {'Harvest Event': 'red', 'Potential Drought Stress': 'orange', 'General Stress Event': 'purple'}
+    colors = {'Potential Drought Stress': 'orange', 'General Stress Event': 'purple'}
     
     for anomaly in anomalies_found:
         fig.add_shape(type='line', x0=anomaly['Date'], y0=0, x1=anomaly['Date'], y1=1, yref='paper',
@@ -197,9 +203,14 @@ def run_forecast(df, forecasting_models, farm_name):
     future_df = pd.DataFrame(index=future_dates)
     future_df['day_of_year'] = future_df.index.dayofyear
     farm_data = df[df[FARM_NAME_COL] == farm_name]
-    future_df[EVI_COL] = farm_data[EVI_COL].iloc[-1]
+    
+    # Using SAVI instead of EVI for forecasting model features
+    future_df[SAVI_COL] = farm_data[SAVI_COL].iloc[-1]
     future_df[NDWI_COL] = farm_data[NDWI_COL].iloc[-1]
-    predictions = model.predict(future_df[['day_of_year', EVI_COL, NDWI_COL]])
+    
+    # The model expects columns named 'evi' and 'ndwi'. We rename SAVI to EVI for prediction.
+    predict_features = future_df[['day_of_year', SAVI_COL, NDWI_COL]].rename(columns={SAVI_COL: 'evi'})
+    predictions = model.predict(predict_features)
     
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=farm_data[TIMESTAMP_COL], y=farm_data[NDVI_COL], mode='lines', name='Historical NDVI', line=dict(color='green')))
@@ -288,7 +299,7 @@ def main():
     # --- TAB 2: Anomaly Detection ---
     with tab2:
         st.subheader(f"Intelligent Anomaly Detection for: **{selected_farm}**")
-        st.info("This model detects significant negative changes in vegetation health, classifying them into potential causes like drought or harvesting events.")
+        st.info("This model detects significant negative changes in vegetation health, classifying them into potential causes like drought.")
         
         anomaly_df, anomaly_fig = detect_and_classify_anomalies(df_historical, selected_farm)
         
