@@ -77,7 +77,7 @@ def load_models():
 @st.cache_data
 def load_data():
     """
-    Loads and caches the main farm dataset, robustly handling the date column.
+    Loads and caches the main farm dataset, robustly cleaning and finding the date column.
     """
     data_path = find_file('consolidated_palm_farm_data.csv')
     if data_path is None:
@@ -85,9 +85,12 @@ def load_data():
         
     df = pd.read_csv(data_path)
     
-    # ✨ FIX: Automatically find and convert the date column
+    # ✨ FIX: Clean all column names to remove whitespace and make them lowercase
+    df.columns = df.columns.str.strip().str.lower()
+    
+    # Now, try to find and convert the date column with the cleaned names
     date_col_found = None
-    possible_date_cols = ['timestamp', 'Date', 'date']
+    possible_date_cols = ['timestamp', 'date', 'time']
     for col in possible_date_cols:
         if col in df.columns:
             date_col_found = col
@@ -95,16 +98,15 @@ def load_data():
             
     if date_col_found:
         df[date_col_found] = pd.to_datetime(df[date_col_found])
-        # Rename to 'timestamp' to ensure consistency across the app
         if date_col_found != 'timestamp':
             df.rename(columns={date_col_found: 'timestamp'}, inplace=True)
     else:
-        st.error(f"CRITICAL ERROR: No date column found in the CSV. Looked for one of {possible_date_cols}.")
+        st.error(f"CRITICAL ERROR: No date column found. Looked for {possible_date_cols} after cleaning headers.")
         st.stop()
 
     return df
 
-# --- 2. CORE ANALYTICAL FUNCTIONS (from Gradio project) ---
+# --- 2. CORE ANALYTICAL FUNCTIONS ---
 
 def get_performance_report(df, scaler, kmeans_model):
     """Assigns farms to performance tiers using a K-Means clustering model."""
@@ -188,7 +190,7 @@ def main():
     
     ALL_FARMS = sorted(df_historical['farm_name'].unique())
     FARM_COORDINATES = {
-        'alia': [24.434117, 39.624376], 'Abdula altazi': [2.4499210, 39.661664],
+        'alia': [24.434117, 39.624376], 'Abdula altazi': [24.499210, 39.661664],
         'albadr': [24.499454, 39.666633], 'alhabibah': [24.499002, 39.667079],
         'alia almadinah': [24.450111, 39.627500], 'almarbad': [24.442014, 39.628323],
         'alosba': [24.431591, 39.605149], 'abuonoq': [24.494620, 39.623123],
@@ -214,7 +216,6 @@ def main():
     with tab1:
         st.subheader("Portfolio Performance & Tiers")
         
-        # Key Metrics
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("Total Farms Analyzed", len(ALL_FARMS))
@@ -283,7 +284,6 @@ def main():
     with tab4:
         st.subheader("Exploratory Data Analysis")
         
-        # Farm Comparison (Health Score from old app)
         farm_stats = df_historical.groupby('farm_name').agg(
             NDVI_mean=('NDVI', 'mean'),
             NDVI_std=('NDVI', 'std'),
@@ -300,15 +300,14 @@ def main():
         fig_comp.update_layout(height=400, yaxis={'categoryorder':'total ascending'})
         st.plotly_chart(fig_comp, use_container_width=True)
         
-        # Seasonal Analysis
         st.markdown("##### Seasonal NDVI Patterns (Portfolio Average)")
-        df_historical['month'] = df_historical['timestamp'].dt.month
-        monthly_avg = df_historical.groupby('month')['NDVI'].mean().reset_index()
-        fig_seasonal = px.line(monthly_avg, x='month', y='NDVI', markers=True,
-                               labels={'month': 'Month of the Year', 'NDVI': 'Average NDVI'})
-        fig_seasonal.update_xaxes(dtick=1)
-        st.plotly_chart(fig_seasonal, use_container_width=True)
-
+        if 'timestamp' in df_historical.columns:
+            df_historical['month'] = df_historical['timestamp'].dt.month
+            monthly_avg = df_historical.groupby('month')['NDVI'].mean().reset_index()
+            fig_seasonal = px.line(monthly_avg, x='month', y='NDVI', markers=True,
+                                   labels={'month': 'Month of the Year', 'NDVI': 'Average NDVI'})
+            fig_seasonal.update_xaxes(dtick=1)
+            st.plotly_chart(fig_seasonal, use_container_width=True)
 
     # --- TAB 5: Data Explorer ---
     with tab5:
