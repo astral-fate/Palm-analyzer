@@ -46,16 +46,26 @@ st.markdown("""
 
 # --- 1. DATA AND MODEL LOADING (with Caching) ---
 
-def find_file(filename, search_paths=['./', './Data/', './Model/']):
+# ✨ FIX: Make file paths robust by using the script's absolute path
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def find_file(filename):
     """
-    Robustly finds a file in a list of search paths.
-    ✨ FIX: Added './Model/' to the search paths.
+    Robustly finds a file by searching in directories relative to the app's location.
     """
+    # Define search paths relative to the app's directory
+    search_paths = [
+        os.path.join(SCRIPT_DIR),              # Project root
+        os.path.join(SCRIPT_DIR, 'Data'),      # ./Data/
+        os.path.join(SCRIPT_DIR, 'Model')      # ./Model/
+    ]
+    
     for path in search_paths:
         filepath = os.path.join(path, filename)
         if os.path.exists(filepath):
             return filepath
-    st.error(f"CRITICAL ERROR: Could not find '{filename}'. Please ensure it's in one of the following directories: {search_paths}")
+            
+    st.error(f"CRITICAL ERROR: Could not find '{filename}'. Looked in directories relative to the app script.")
     return None
 
 @st.cache_resource
@@ -77,7 +87,6 @@ def load_models():
 def load_data():
     """
     Loads and caches the main farm dataset.
-    ✨ FIX: Changed to 'consolidated_palm_farm_data.csv' to match your file list.
     """
     data_path = find_file('consolidated_palm_farm_data.csv')
     if data_path is None:
