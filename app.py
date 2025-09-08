@@ -46,13 +46,13 @@ st.markdown("""
 
 # --- 1. DATA AND MODEL LOADING (with Caching) ---
 
-def find_file(filename, search_paths=['./', './data/']):
+def find_file(filename, search_paths=['./', './Data/']):
     """Robustly finds a file in a list of search paths."""
     for path in search_paths:
         filepath = os.path.join(path, filename)
         if os.path.exists(filepath):
             return filepath
-    st.error(f"CRITICAL ERROR: Could not find '{filename}'. Please ensure it's in the root or './data/' directory.")
+    st.error(f"CRITICAL ERROR: Could not find '{filename}'. Please ensure it's in the root or './Data/' directory.")
     return None
 
 @st.cache_resource
