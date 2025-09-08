@@ -85,10 +85,9 @@ def load_data():
         
     df = pd.read_csv(data_path)
     
-    # ✨ FIX: Clean all column names to remove whitespace and make them lowercase
+    # Clean all column names to remove whitespace and make them lowercase
     df.columns = df.columns.str.strip().str.lower()
     
-    # Now, try to find and convert the date column with the cleaned names
     date_col_found = None
     possible_date_cols = ['timestamp', 'date', 'time']
     for col in possible_date_cols:
@@ -109,9 +108,12 @@ def load_data():
 # --- 2. CORE ANALYTICAL FUNCTIONS ---
 
 def get_performance_report(df, scaler, kmeans_model):
-    """Assigns farms to performance tiers using a K-Means clustering model."""
+    """
+    Assigns farms to performance tiers using a K-Means clustering model.
+    ✨ FIX: Using lowercase column names ('ndvi', 'evi').
+    """
     kpi_df = df.groupby('farm_name').agg(
-        mean_ndvi=('NDVI', 'mean'), mean_evi=('EVI', 'mean'), std_ndvi=('NDVI', 'std')
+        mean_ndvi=('ndvi', 'mean'), mean_evi=('evi', 'mean'), std_ndvi=('ndvi', 'std')
     ).reset_index().dropna()
     features = kpi_df[['mean_ndvi', 'mean_evi', 'std_ndvi']]
     scaled_features = scaler.transform(features)
@@ -123,16 +125,19 @@ def get_performance_report(df, scaler, kmeans_model):
     return kpi_df[['farm_name', 'Performance Tier', 'mean_ndvi', 'mean_evi']].sort_values('Performance Tier')
 
 def detect_and_classify_anomalies(df, farm_name):
-    """Detects and classifies anomalies in NDVI data for a specific farm."""
+    """
+    Detects and classifies anomalies in NDVI data for a specific farm.
+    ✨ FIX: Using lowercase column names ('ndvi', 'ndwi', 'sar_vv').
+    """
     farm_data = df[df['farm_name'] == farm_name].set_index('timestamp').sort_index()
-    df_resampled = farm_data[['NDVI', 'NDWI', 'SAR_VV']].resample('W').mean().interpolate(method='linear')
+    df_resampled = farm_data[['ndvi', 'ndwi', 'sar_vv']].resample('W').mean().interpolate(method='linear')
     df_change = df_resampled.diff().dropna()
     rolling_std = df_change.rolling(window=12, min_periods=4).std()
-    thresholds = {'NDVI': rolling_std['NDVI'] * 1.5, 'NDWI': rolling_std['NDWI'] * 1.5, 'SAR_VV': rolling_std['SAR_VV'] * 1.5}
+    thresholds = {'ndvi': rolling_std['ndvi'] * 1.5, 'ndwi': rolling_std['ndwi'] * 1.5, 'sar_vv': rolling_std['sar_vv'] * 1.5}
     anomalies_found = []
     for date, row in df_change.iterrows():
-        ndvi_change, ndwi_change, sar_vv_change = row['NDVI'], row['NDWI'], row['SAR_VV']
-        ndvi_thresh, ndwi_thresh, sar_thresh = thresholds['NDVI'].get(date, 0.07), thresholds['NDWI'].get(date, 0.07), thresholds['SAR_VV'].get(date, 1.0)
+        ndvi_change, ndwi_change, sar_vv_change = row['ndvi'], row['ndwi'], row['sar_vv']
+        ndvi_thresh, ndwi_thresh, sar_thresh = thresholds['ndvi'].get(date, 0.07), thresholds['ndwi'].get(date, 0.07), thresholds['sar_vv'].get(date, 1.0)
         classification = "Normal"
         if ndvi_change < -ndvi_thresh and sar_vv_change < -sar_thresh:
             classification = 'Harvest Event'
@@ -144,7 +149,7 @@ def detect_and_classify_anomalies(df, farm_name):
             anomalies_found.append({'Date': date, 'Classification': classification, 'NDVI Change': f"{ndvi_change:.3f}"})
     
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=farm_data.index, y=farm_data['NDVI'], mode='lines', name='NDVI', line=dict(color='green')))
+    fig.add_trace(go.Scatter(x=farm_data.index, y=farm_data['ndvi'], mode='lines', name='NDVI', line=dict(color='green')))
     colors = {'Harvest Event': 'red', 'Potential Drought Stress': 'orange', 'General Stress Event': 'purple'}
     
     for anomaly in anomalies_found:
@@ -158,7 +163,10 @@ def detect_and_classify_anomalies(df, farm_name):
     return pd.DataFrame(display_anomalies), fig
 
 def run_forecast(df, forecasting_models, farm_name):
-    """Runs a 3-month NDVI forecast for a selected farm."""
+    """
+    Runs a 3-month NDVI forecast for a selected farm.
+    ✨ FIX: Using lowercase column names ('evi', 'ndwi', 'ndvi').
+    """
     model = forecasting_models.get(farm_name)
     if not model:
         return None, None
@@ -167,12 +175,12 @@ def run_forecast(df, forecasting_models, farm_name):
     future_df = pd.DataFrame(index=future_dates)
     future_df['day_of_year'] = future_df.index.dayofyear
     farm_data = df[df['farm_name'] == farm_name]
-    future_df['EVI'] = farm_data['EVI'].iloc[-1]
-    future_df['NDWI'] = farm_data['NDWI'].iloc[-1]
-    predictions = model.predict(future_df[['day_of_year', 'EVI', 'NDWI']])
+    future_df['evi'] = farm_data['evi'].iloc[-1]
+    future_df['ndwi'] = farm_data['ndwi'].iloc[-1]
+    predictions = model.predict(future_df[['day_of_year', 'evi', 'ndwi']])
     
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=farm_data['timestamp'], y=farm_data['NDVI'], mode='lines', name='Historical NDVI', line=dict(color='green')))
+    fig.add_trace(go.Scatter(x=farm_data['timestamp'], y=farm_data['ndvi'], mode='lines', name='Historical NDVI', line=dict(color='green')))
     fig.add_trace(go.Scatter(x=future_dates, y=predictions, mode='lines', name='Forecasted NDVI', line=dict(color='red', dash='dash')))
     fig.update_layout(title=f'3-Month NDVI Forecast for {farm_name}', height=500)
     
@@ -220,7 +228,7 @@ def main():
         with col1:
             st.metric("Total Farms Analyzed", len(ALL_FARMS))
         with col2:
-            st.metric("Average Portfolio NDVI", f"{df_historical['NDVI'].mean():.3f}")
+            st.metric("Average Portfolio NDVI", f"{df_historical['ndvi'].mean():.3f}")
         with col3:
             st.metric("Latest Data Point", df_historical['timestamp'].max().strftime('%Y-%m-%d'))
 
@@ -285,11 +293,11 @@ def main():
         st.subheader("Exploratory Data Analysis")
         
         farm_stats = df_historical.groupby('farm_name').agg(
-            NDVI_mean=('NDVI', 'mean'),
-            NDVI_std=('NDVI', 'std'),
-            NDVI_count=('NDVI', 'count')
+            ndvi_mean=('ndvi', 'mean'),
+            ndvi_std=('ndvi', 'std'),
+            ndvi_count=('ndvi', 'count')
         ).reset_index()
-        farm_stats['health_score'] = (farm_stats['NDVI_mean'] * 0.7 + (1 - farm_stats['NDVI_std']) * 0.3) * 100
+        farm_stats['health_score'] = (farm_stats['ndvi_mean'] * 0.7 + (1 - farm_stats['ndvi_std']) * 0.3) * 100
         farm_stats = farm_stats.sort_values('health_score', ascending=False)
         
         st.markdown("##### Farm Ranking by Health Score (NDVI Mean & Stability)")
@@ -303,8 +311,8 @@ def main():
         st.markdown("##### Seasonal NDVI Patterns (Portfolio Average)")
         if 'timestamp' in df_historical.columns:
             df_historical['month'] = df_historical['timestamp'].dt.month
-            monthly_avg = df_historical.groupby('month')['NDVI'].mean().reset_index()
-            fig_seasonal = px.line(monthly_avg, x='month', y='NDVI', markers=True,
+            monthly_avg = df_historical.groupby('month')['ndvi'].mean().reset_index()
+            fig_seasonal = px.line(monthly_avg, x='month', y='ndvi', markers=True,
                                    labels={'month': 'Month of the Year', 'NDVI': 'Average NDVI'})
             fig_seasonal.update_xaxes(dtick=1)
             st.plotly_chart(fig_seasonal, use_container_width=True)
