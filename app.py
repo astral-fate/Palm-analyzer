@@ -3,22 +3,24 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-import joblib
-import os
+from plotly.subplots import make_subplots
 import warnings
-from datetime import datetime
+from datetime import datetime, timedelta
+import calendar
+import io
+import os  # Added for directory scanning
 
 warnings.filterwarnings('ignore')
 
-# --- Page Configuration ---
+# Configure page
 st.set_page_config(
-    page_title="Palm Farm Intelligence Platform",
+    page_title="Palm Farm Analytics Dashboard",
     page_icon="🌴",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# --- Custom CSS Styling ---
+# Custom CSS
 st.markdown("""
 <style>
     .main-header {
@@ -26,302 +28,1075 @@ st.markdown("""
         color: #2E8B57;
         text-align: center;
         margin-bottom: 2rem;
+        background: linear-gradient(90deg, #2E8B57, #3CB371);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
         font-weight: bold;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
     }
     .metric-card {
-        background-color: #F0F8F0;
+        background: linear-gradient(135deg, #f0f8f0 0%, #e8f5e8 100%);
         padding: 1.5rem;
         border-radius: 15px;
         border-left: 5px solid #2E8B57;
         margin: 0.5rem 0;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        transition: transform 0.2s;
+    }
+    .metric-card:hover {
+        transform: translateY(-2px);
+    }
+    .insight-box {
+        background: linear-gradient(135deg, #e8f4fd 0%, #d1ecf1 100%);
+        border: 1px solid #b3d9ff;
+        color: #0c5aa6;
+        padding: 1.5rem;
+        border-radius: 12px;
+        margin: 1rem 0;
+        box-shadow: 0 3px 12px rgba(0,0,0,0.08);
+    }
+    .warning-box {
+        background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+        border: 1px solid #ffeaa7;
+        color: #856404;
+        padding: 1.5rem;
+        border-radius: 12px;
+        margin: 1rem 0;
+        box-shadow: 0 3px 12px rgba(0,0,0,0.08);
+    }
+    .success-box {
+        background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+        border: 1px solid #c3e6cb;
+        color: #155724;
+        padding: 1.5rem;
+        border-radius: 12px;
+        margin: 1rem 0;
+        box-shadow: 0 3px 12px rgba(0,0,0,0.08);
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 4px;
     }
     .stTabs [data-baseweb="tab"] {
-        height: 50px;
+        height: 60px;
+        padding-left: 24px;
+        padding-right: 24px;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: 12px 12px 0 0;
+        color: #495057;
         font-weight: 600;
+    }
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #2E8B57 0%, #3CB371 100%);
+        color: white;
+    }
+    .dataframe {
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
     }
 </style>
 """, unsafe_allow_html=True)
 
-
-# --- 1. DATA AND MODEL LOADING (with Caching) ---
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-
-def find_file(filename):
-    """Robustly finds a file by searching in directories relative to the app's location."""
-    search_paths = [
-        os.path.join(SCRIPT_DIR),
-        os.path.join(SCRIPT_DIR, 'Data'),
-        os.path.join(SCRIPT_DIR, 'Model')
-    ]
-    for path in search_paths:
-        filepath = os.path.join(path, filename)
-        if os.path.exists(filepath):
-            return filepath
-    st.error(f"CRITICAL ERROR: Could not find '{filename}'. Looked in directories relative to the app script.")
-    return None
-
-@st.cache_resource
-def load_models():
-    """Loads and caches the machine learning models."""
-    scaler_path = find_file('scaler.joblib')
-    kmeans_path = find_file('kmeans_model.joblib')
-    forecasting_path = find_file('forecasting_models.joblib')
-    if not all([scaler_path, kmeans_path, forecasting_path]):
-        st.stop()
-    scaler = joblib.load(scaler_path)
-    kmeans_model = joblib.load(kmeans_path)
-    forecasting_models = joblib.load(forecasting_path)
-    return scaler, kmeans_model, forecasting_models
-
 @st.cache_data
-def load_data():
+def load_real_data(folder_path):
     """
-    Loads and caches the main farm dataset, robustly cleaning and finding the date column.
+    Loads and consolidates historical data from a directory of farm folders.
     """
-    data_path = find_file('consolidated_palm_farm_data.csv')
-    if data_path is None:
-        st.stop()
+    all_farm_data = []
+    
+    # Check if the main data folder exists
+    if not os.path.isdir(folder_path):
+        st.error(f"Error: The directory '{folder_path}' was not found. Please make sure it exists.")
+        return pd.DataFrame()
+
+    # Get a list of subdirectories (each representing a farm)
+    farm_folders = [f for f in os.listdir(folder_path) if os.path.isdir(os.path.join(folder_path, f))]
+
+    if not farm_folders:
+        st.error(f"No farm folders found in the '{folder_path}' directory.")
+        return pd.DataFrame()
+
+    for farm_name in farm_folders:
+        farm_dir = os.path.join(folder_path, farm_name)
         
-    df = pd.read_csv(data_path)
-    
-    # Clean all column names to remove whitespace and make them lowercase
-    df.columns = df.columns.str.strip().str.lower()
-    
-    date_col_found = None
-    possible_date_cols = ['timestamp', 'date', 'time']
-    for col in possible_date_cols:
-        if col in df.columns:
-            date_col_found = col
-            break
+        # Find the historical CSV file within the farm directory
+        try:
+            target_file = next(f for f in os.listdir(farm_dir) if f.endswith('_historical_2015_2025.csv'))
+            file_path = os.path.join(farm_dir, target_file)
             
-    if date_col_found:
-        df[date_col_found] = pd.to_datetime(df[date_col_found])
-        if date_col_found != 'timestamp':
-            df.rename(columns={date_col_found: 'timestamp'}, inplace=True)
-    else:
-        st.error(f"CRITICAL ERROR: No date column found. Looked for {possible_date_cols} after cleaning headers.")
-        st.stop()
+            df_farm = pd.read_csv(file_path)
+            
+            # Add the farm name to identify the data source
+            df_farm['farm_name'] = farm_name
+            
+            all_farm_data.append(df_farm)
+            
+        except StopIteration:
+            # This handles cases where a folder doesn't contain the required file
+            st.warning(f"Warning: No historical CSV file found in folder: {farm_name}")
+        except Exception as e:
+            st.error(f"Error loading data for farm '{farm_name}': {e}")
+    
+    if not all_farm_data:
+        st.error("No valid data could be loaded. Please check your file structure.")
+        return pd.DataFrame()
+        
+    # Combine all dataframes into one
+    consolidated_df = pd.concat(all_farm_data, ignore_index=True)
+    
+    # Standard data cleaning and preparation
+    consolidated_df['timestamp'] = pd.to_datetime(consolidated_df['timestamp'])
+    
+    # Ensure all required columns exist, fill with defaults if not
+    required_cols = ['NDVI', 'NDWI', 'SAVI', 'cloud_percent', 'season', 'month', 'year', 'farm_name', 'farm_id']
+    for col in required_cols:
+        if col not in consolidated_df.columns:
+            consolidated_df[col] = 0 if 'ND' in col else 'N/A'
+            st.warning(f"Column '{col}' was missing and has been filled with default values.")
 
-    return df
+    return consolidated_df
 
-# --- 2. CORE ANALYTICAL FUNCTIONS ---
+class PalmFarmAnalytics:
+    def __init__(self, df):
+        self.df = df.copy()
+        self.prepare_data()
+    
+    def prepare_data(self):
+        """Prepare data with additional features"""
+        # Set timestamp as index for time series operations
+        self.df_indexed = self.df.set_index('timestamp')
+        
+        # Calculate rolling averages for each farm
+        farm_data = []
+        for farm_name in self.df['farm_name'].unique():
+            farm_df = self.df[self.df['farm_name'] == farm_name].copy()
+            farm_df = farm_df.sort_values('timestamp')
+            
+            # Rolling statistics
+            farm_df['ndvi_ma_30'] = farm_df['NDVI'].rolling(window=30, min_periods=5).mean()
+            farm_df['ndvi_ma_90'] = farm_df['NDVI'].rolling(window=90, min_periods=10).mean()
+            farm_df['ndvi_std_30'] = farm_df['NDVI'].rolling(window=30, min_periods=5).std()
+            
+            # Trend indicators
+            farm_df['ndvi_trend'] = farm_df['NDVI'].diff(7)  # 7-day change
+            
+            # Performance vs historical average
+            farm_df['ndvi_vs_avg'] = farm_df['NDVI'] - farm_df['NDVI'].mean()
+            
+            farm_data.append(farm_df)
+        
+        self.df_enhanced = pd.concat(farm_data)
 
-def get_performance_report(df, scaler, kmeans_model):
-    """
-    Assigns farms to performance tiers using a K-Means clustering model.
-    ✨ FIX: Using lowercase column names ('ndvi', 'evi').
-    """
-    kpi_df = df.groupby('farm_name').agg(
-        mean_ndvi=('ndvi', 'mean'), mean_evi=('evi', 'mean'), std_ndvi=('ndvi', 'std')
-    ).reset_index().dropna()
-    features = kpi_df[['mean_ndvi', 'mean_evi', 'std_ndvi']]
-    scaled_features = scaler.transform(features)
-    kpi_df['cluster'] = kmeans_model.predict(scaled_features)
-    cluster_centers = pd.DataFrame(scaler.inverse_transform(kmeans_model.cluster_centers_), columns=['mean_ndvi', 'mean_evi', 'std_ndvi'])
-    sorted_clusters = cluster_centers.sort_values(by='mean_ndvi', ascending=False).index
-    tier_map = {sorted_clusters[0]: 'Tier 1 (High)', sorted_clusters[1]: 'Tier 2 (Medium)', sorted_clusters[2]: 'Tier 3 (Low)'}
-    kpi_df['Performance Tier'] = kpi_df['cluster'].map(tier_map)
-    return kpi_df[['farm_name', 'Performance Tier', 'mean_ndvi', 'mean_evi']].sort_values('Performance Tier')
-
-def detect_and_classify_anomalies(df, farm_name):
-    """
-    Detects and classifies anomalies in NDVI data for a specific farm.
-    ✨ FIX: Using lowercase column names ('ndvi', 'ndwi', 'sar_vv').
-    """
-    farm_data = df[df['farm_name'] == farm_name].set_index('timestamp').sort_index()
-    df_resampled = farm_data[['ndvi', 'ndwi', 'sar_vv']].resample('W').mean().interpolate(method='linear')
-    df_change = df_resampled.diff().dropna()
-    rolling_std = df_change.rolling(window=12, min_periods=4).std()
-    thresholds = {'ndvi': rolling_std['ndvi'] * 1.5, 'ndwi': rolling_std['ndwi'] * 1.5, 'sar_vv': rolling_std['sar_vv'] * 1.5}
-    anomalies_found = []
-    for date, row in df_change.iterrows():
-        ndvi_change, ndwi_change, sar_vv_change = row['ndvi'], row['ndwi'], row['sar_vv']
-        ndvi_thresh, ndwi_thresh, sar_thresh = thresholds['ndvi'].get(date, 0.07), thresholds['ndwi'].get(date, 0.07), thresholds['sar_vv'].get(date, 1.0)
-        classification = "Normal"
-        if ndvi_change < -ndvi_thresh and sar_vv_change < -sar_thresh:
-            classification = 'Harvest Event'
-        elif ndvi_change < -ndvi_thresh and ndwi_change < -ndwi_thresh:
-            classification = 'Potential Drought Stress'
-        elif ndvi_change < -ndvi_thresh:
-            classification = 'General Stress Event'
-        if classification != "Normal":
-            anomalies_found.append({'Date': date, 'Classification': classification, 'NDVI Change': f"{ndvi_change:.3f}"})
+def create_overview_metrics(df):
+    """Create key performance metrics"""
+    total_observations = len(df)
+    farms_count = df['farm_name'].nunique()
+    date_range = f"{df['timestamp'].min().strftime('%Y-%m-%d')} to {df['timestamp'].max().strftime('%Y-%m-%d')}"
+    avg_ndvi = df['NDVI'].mean()
+    data_quality = (100 - df['cloud_percent'].mean())
     
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=farm_data.index, y=farm_data['ndvi'], mode='lines', name='NDVI', line=dict(color='green')))
-    colors = {'Harvest Event': 'red', 'Potential Drought Stress': 'orange', 'General Stress Event': 'purple'}
-    
-    for anomaly in anomalies_found:
-        fig.add_shape(type='line', x0=anomaly['Date'], y0=0, x1=anomaly['Date'], y1=1, yref='paper',
-                      line=dict(color=colors.get(anomaly['Classification']), width=2, dash='dash'))
-        fig.add_annotation(x=anomaly['Date'], y=1.0, yref='paper', text=anomaly['Classification'], showarrow=False, yshift=10, font=dict(color=colors.get(anomaly['Classification'])))
-    
-    fig.update_layout(title=f'NDVI Timeline & Detected Anomalies for {farm_name}', xaxis_title='Date', yaxis_title='NDVI', height=500)
-    
-    display_anomalies = [{'Date': a['Date'].strftime('%Y-%m-%d'), 'Classification': a['Classification'], 'NDVI Change': a['NDVI Change']} for a in anomalies_found]
-    return pd.DataFrame(display_anomalies), fig
-
-def run_forecast(df, forecasting_models, farm_name):
-    """
-    Runs a 3-month NDVI forecast for a selected farm.
-    ✨ FIX: Using lowercase column names ('evi', 'ndwi', 'ndvi').
-    """
-    model = forecasting_models.get(farm_name)
-    if not model:
-        return None, None
-    last_date = df['timestamp'].max()
-    future_dates = pd.to_datetime(pd.date_range(start=last_date, periods=12, freq='W'))
-    future_df = pd.DataFrame(index=future_dates)
-    future_df['day_of_year'] = future_df.index.dayofyear
-    farm_data = df[df['farm_name'] == farm_name]
-    future_df['evi'] = farm_data['evi'].iloc[-1]
-    future_df['ndwi'] = farm_data['ndwi'].iloc[-1]
-    predictions = model.predict(future_df[['day_of_year', 'evi', 'ndwi']])
-    
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=farm_data['timestamp'], y=farm_data['ndvi'], mode='lines', name='Historical NDVI', line=dict(color='green')))
-    fig.add_trace(go.Scatter(x=future_dates, y=predictions, mode='lines', name='Forecasted NDVI', line=dict(color='red', dash='dash')))
-    fig.update_layout(title=f'3-Month NDVI Forecast for {farm_name}', height=500)
-    
-    forecast_df = pd.DataFrame({'Forecast Date': future_dates.strftime('%Y-%m-%d'), 'Predicted NDVI': np.round(predictions, 3)})
-    return forecast_df, fig
-
-# --- 3. MAIN APPLICATION ---
-def main():
-    st.markdown('<h1 class="main-header">🌴 Palm Farm Intelligence Platform</h1>', unsafe_allow_html=True)
-    
-    # --- Load all data and models ---
-    scaler, kmeans_model, forecasting_models = load_models()
-    df_historical = load_data()
-    df_performance = get_performance_report(df_historical, scaler, kmeans_model)
-    
-    ALL_FARMS = sorted(df_historical['farm_name'].unique())
-    FARM_COORDINATES = {
-        'alia': [24.434117, 39.624376], 'Abdula altazi': [24.499210, 39.661664],
-        'albadr': [24.499454, 39.666633], 'alhabibah': [24.499002, 39.667079],
-        'alia almadinah': [24.450111, 39.627500], 'almarbad': [24.442014, 39.628323],
-        'alosba': [24.431591, 39.605149], 'abuonoq': [24.494620, 39.623123],
-        'wahaa nakeel': [24.442692, 39.623028], 'wahaa 2': [24.442388, 39.621116]
+    return {
+        'total_observations': total_observations,
+        'farms_count': farms_count,
+        'date_range': date_range,
+        'avg_ndvi': avg_ndvi,
+        'data_quality': data_quality
     }
-    farm_coords_df = pd.DataFrame.from_dict(FARM_COORDINATES, orient='index', columns=['lat', 'lon']).reset_index().rename(columns={'index':'farm_name'})
-    farm_coords_df = farm_coords_df.merge(df_performance[['farm_name', 'Performance Tier']], on='farm_name', how='left')
 
-    # --- Sidebar Filters ---
-    st.sidebar.header("📋 Dashboard Filters")
-    selected_farm = st.sidebar.selectbox("Select a Farm for Detailed Analysis:", ALL_FARMS)
+def create_seasonal_analysis(df):
+    """Analyze seasonal patterns"""
+    # Monthly averages
+    monthly_stats = df.groupby('month').agg({
+        'NDVI': ['mean', 'std', 'min', 'max', 'count'],
+        'NDWI': 'mean',
+        'SAVI': 'mean',
+        'cloud_percent': 'mean'
+    }).round(4)
     
-    # --- Main Tabs for Navigation ---
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "🌟 Performance Overview", 
+    # Flatten column names
+    monthly_stats.columns = ['_'.join(col).strip() for col in monthly_stats.columns]
+    
+    return monthly_stats
+
+def create_farm_comparison(df):
+    """Compare farm performance"""
+    farm_stats = df.groupby(['farm_name']).agg({ # Simplified grouping
+        'NDVI': ['mean', 'std', 'min', 'max', 'count'],
+        'NDWI': 'mean',
+        'SAVI': 'mean',
+        'cloud_percent': 'mean'
+    }).round(4)
+    
+    # Flatten column names
+    farm_stats.columns = ['_'.join(col).strip() for col in farm_stats.columns]
+    
+    # Calculate performance score
+    farm_stats['health_score'] = (
+        farm_stats['NDVI_mean'] * 0.6 +
+        (1 - farm_stats['NDVI_std']) * 0.3 +
+        (1 - farm_stats['cloud_percent_mean']/100) * 0.1
+    ) * 100
+    
+    # Add ranking
+    farm_stats['rank'] = farm_stats['health_score'].rank(ascending=False, method='dense').astype(int)
+    
+    return farm_stats.sort_values('health_score', ascending=False)
+
+def create_anomaly_detection(df):
+    """Simple anomaly detection based on statistical thresholds"""
+    anomalies = []
+    
+    for farm_name in df['farm_name'].unique():
+        farm_data = df[df['farm_name'] == farm_name].copy()
+        
+        # Calculate statistical thresholds
+        q25 = farm_data['NDVI'].quantile(0.25)
+        q75 = farm_data['NDVI'].quantile(0.75)
+        iqr = q75 - q25
+        lower_bound = q25 - 1.5 * iqr
+        upper_bound = q75 + 1.5 * iqr
+        
+        # Find anomalies
+        farm_anomalies = farm_data[
+            (farm_data['NDVI'] < lower_bound) | 
+            (farm_data['NDVI'] > upper_bound)
+        ].copy()
+        
+        # Classify severity
+        farm_anomalies['severity'] = 'Medium'
+        farm_anomalies.loc[farm_anomalies['NDVI'] < q25 - 2*iqr, 'severity'] = 'High'
+        farm_anomalies.loc[farm_anomalies['NDVI'] < q25 - 3*iqr, 'severity'] = 'Critical'
+        
+        anomalies.append(farm_anomalies)
+    
+    if anomalies:
+        return pd.concat(anomalies)
+    return pd.DataFrame()
+
+def main():
+    st.markdown('<h1 class="main-header">🌴 Palm Farm Analytics Dashboard</h1>', 
+                unsafe_allow_html=True)
+    
+    # Load data
+    with st.spinner("Loading farm data..."):
+        # MODIFIED: Load real data from the "Data/" directory
+        df = load_real_data("Data")
+        if df.empty:
+            st.error("Data loading failed. Please check the 'Data' folder and its contents.")
+            return
+        analytics = PalmFarmAnalytics(df)
+    
+    # Sidebar configuration
+    st.sidebar.header("📊 Dashboard Configuration")
+    
+    # Date range filter
+    min_date = df['timestamp'].min().date()
+    max_date = df['timestamp'].max().date()
+    
+    date_range = st.sidebar.date_input(
+        "Select date range:",
+        value=(min_date, max_date),
+        min_value=min_date,
+        max_value=max_date
+    )
+    
+    # Farm selection
+    all_farms = sorted(df['farm_name'].unique()) # Using farm_name now
+    selected_farms = st.sidebar.multiselect(
+        "Select farms:",
+        options=all_farms,
+        default=all_farms,
+        help="Choose which farms to include in the analysis"
+    )
+    
+    # Apply filters
+    if len(date_range) == 2:
+        start_date, end_date = date_range
+        df_filtered = df[
+            (df['timestamp'].dt.date >= start_date) & 
+            (df['timestamp'].dt.date <= end_date) &
+            (df['farm_name'].isin(selected_farms))
+        ]
+    else:
+        df_filtered = df[df['farm_name'].isin(selected_farms)]
+    
+    if df_filtered.empty:
+        st.error("No data available for the selected filters.")
+        return
+    
+    # Create main tabs
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+        "📊 Overview", 
+        "🌱 Seasonal Analysis",
+        "🏆 Farm Comparison", 
+        "📈 Trends & Forecasting",
         "🚨 Anomaly Detection",
-        "📈 NDVI Forecasting",
-        "🌱 EDA & Farm Comparison",
         "📋 Data Explorer"
     ])
     
-    # --- TAB 1: Performance Overview ---
     with tab1:
-        st.subheader("Portfolio Performance & Tiers")
+        st.header("📊 Portfolio Overview")
+        
+        # Key metrics
+        metrics = create_overview_metrics(df_filtered)
+        
+        col1, col2, col3, col4, col5 = st.columns(5)
+        
+        with col1:
+            st.metric("Total Observations", f"{metrics['total_observations']:,}")
+        
+        with col2:
+            st.metric("Active Farms", f"{metrics['farms_count']}")
+        
+        with col3:
+            st.metric("Avg NDVI", f"{metrics['avg_ndvi']:.3f}")
+        
+        with col4:
+            st.metric("Data Quality", f"{metrics['data_quality']:.1f}%")
+        
+        with col5:
+            years_span = df_filtered['year'].nunique()
+            st.metric("Years of Data", f"{years_span}")
+        
+        # Portfolio performance chart
+        st.subheader("📈 Portfolio Performance Over Time")
+        
+        # Monthly aggregation for cleaner visualization
+        monthly_data = df_filtered.groupby([
+            df_filtered['timestamp'].dt.to_period('M'), 'farm_name'
+        ])['NDVI'].mean().reset_index()
+        monthly_data['timestamp'] = monthly_data['timestamp'].dt.to_timestamp()
+        
+        fig_portfolio = px.line(
+            monthly_data,
+            x='timestamp',
+            y='NDVI',
+            color='farm_name',
+            title='Monthly NDVI Trends by Farm',
+            labels={'timestamp': 'Date', 'NDVI': 'NDVI Value', 'farm_name': 'Farm'}
+        )
+        fig_portfolio.update_layout(height=500, hovermode='x unified')
+        st.plotly_chart(fig_portfolio, use_container_width=True)
+        
+        # Performance distribution
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            fig_hist = px.histogram(
+                df_filtered,
+                x='NDVI',
+                nbins=30,
+                title='NDVI Distribution Across All Farms',
+                color_discrete_sequence=['#2E8B57']
+            )
+            fig_hist.update_layout(showlegend=False, height=400)
+            st.plotly_chart(fig_hist, use_container_width=True)
+        
+        with col2:
+            # Box plot by season
+            fig_box = px.box(
+                df_filtered,
+                x='season',
+                y='NDVI',
+                title='NDVI Distribution by Season',
+                color='season',
+                color_discrete_map={
+                    'Spring': '#90EE90',
+                    'Summer': '#FFD700', 
+                    'Fall': '#DEB887',
+                    'Winter': '#87CEEB'
+                }
+            )
+            fig_box.update_layout(showlegend=False, height=400)
+            st.plotly_chart(fig_box, use_container_width=True)
+        
+        # Key insights
+        st.subheader("🎯 Key Insights")
         
         col1, col2, col3 = st.columns(3)
+        
         with col1:
-            st.metric("Total Farms Analyzed", len(ALL_FARMS))
+            st.markdown('<div class="insight-box">', unsafe_allow_html=True)
+            best_farm = df_filtered.groupby('farm_name')['NDVI'].mean().idxmax()
+            best_ndvi = df_filtered.groupby('farm_name')['NDVI'].mean().max()
+            st.write(f"**🏆 Top Performer**")
+            st.write(f"{best_farm}")
+            st.write(f"Average NDVI: {best_ndvi:.3f}")
+            st.markdown('</div>', unsafe_allow_html=True)
+        
         with col2:
-            st.metric("Average Portfolio NDVI", f"{df_historical['ndvi'].mean():.3f}")
+            st.markdown('<div class="insight-box">', unsafe_allow_html=True)
+            seasonal_avg = df_filtered.groupby('season')['NDVI'].mean()
+            best_season = seasonal_avg.idxmax()
+            st.write(f"**🌱 Best Season**")
+            st.write(f"{best_season}")
+            st.write(f"Average NDVI: {seasonal_avg[best_season]:.3f}")
+            st.markdown('</div>', unsafe_allow_html=True)
+        
         with col3:
-            st.metric("Latest Data Point", df_historical['timestamp'].max().strftime('%Y-%m-%d'))
-
-        st.markdown("---")
-        
-        col1, col2 = st.columns([2, 1])
-        with col1:
-            st.markdown("##### Farm Locations by Performance Tier")
-            color_map = {'Tier 1 (High)': 'green', 'Tier 2 (Medium)': 'orange', 'Tier 3 (Low)': 'red'}
-            fig_map = px.scatter_mapbox(farm_coords_df, lat="lat", lon="lon", 
-                                      hover_name="farm_name",
-                                      hover_data=["Performance Tier"],
-                                      color="Performance Tier",
-                                      color_discrete_map=color_map,
-                                      zoom=10, height=500)
-            fig_map.update_layout(mapbox_style="open-street-map", margin={"r":0,"t":0,"l":0,"b":0})
-            st.plotly_chart(fig_map, use_container_width=True)
-            
-        with col2:
-            st.markdown("##### Farm Tier Distribution")
-            tier_counts = df_performance['Performance Tier'].value_counts().reset_index()
-            tier_counts.columns = ['Performance Tier', 'Count']
-            fig_tier = px.bar(tier_counts, x='Performance Tier', y='Count',
-                              color='Performance Tier', text_auto=True,
-                              color_discrete_map=color_map)
-            fig_tier.update_layout(showlegend=False)
-            st.plotly_chart(fig_tier, use_container_width=True)
-
-            st.markdown("##### Performance Tier Table")
-            st.dataframe(df_performance, use_container_width=True)
-
-    # --- TAB 2: Anomaly Detection ---
+            st.markdown('<div class="insight-box">', unsafe_allow_html=True)
+            recent_data = df_filtered[df_filtered['timestamp'] >= df_filtered['timestamp'].max() - timedelta(days=90)]
+            recent_avg = recent_data['NDVI'].mean()
+            overall_avg = df_filtered['NDVI'].mean()
+            trend = "↗️ Improving" if recent_avg > overall_avg else "↘️ Declining" if recent_avg < overall_avg else "→ Stable"
+            st.write(f"**📈 Recent Trend (90d)**")
+            st.write(f"{trend}")
+            st.write(f"Recent avg: {recent_avg:.3f}")
+            st.markdown('</div>', unsafe_allow_html=True)
+    
     with tab2:
-        st.subheader(f"Intelligent Anomaly Detection for: **{selected_farm}**")
-        st.info("This model detects significant negative changes in vegetation health, classifying them into potential causes like drought or harvesting events.")
+        st.header("🌱 Comprehensive Seasonal Analysis")
         
-        anomaly_df, anomaly_fig = detect_and_classify_anomalies(df_historical, selected_farm)
+        # Monthly statistics
+        monthly_stats = create_seasonal_analysis(df_filtered)
         
-        if anomaly_df.empty:
-            st.success("No significant anomalies detected for this farm in the historical data.")
-        else:
-            st.plotly_chart(anomaly_fig, use_container_width=True)
-            st.markdown("##### Detected Anomaly Events")
-            st.dataframe(anomaly_df, use_container_width=True)
-
-    # --- TAB 3: NDVI Forecasting ---
+        # Create month names for display
+        month_names = [calendar.month_name[i] for i in range(1, 13)]
+        
+        # Seasonal patterns visualization
+        fig_seasonal = make_subplots(
+            rows=2, cols=2,
+            subplot_titles=(
+                'Monthly NDVI Patterns', 
+                'Seasonal Variability (Std Dev)',
+                'Data Quality by Month',
+                'Cloud Coverage Patterns'
+            ),
+            specs=[[{"secondary_y": False}, {"secondary_y": False}],
+                   [{"secondary_y": False}, {"secondary_y": False}]]
+        )
+        
+        # Monthly NDVI average
+        fig_seasonal.add_trace(
+            go.Scatter(
+                x=month_names,
+                y=monthly_stats['NDVI_mean'].values,
+                mode='lines+markers',
+                name='Avg NDVI',
+                line=dict(width=3, color='#2E8B57'),
+                marker=dict(size=10)
+            ),
+            row=1, col=1
+        )
+        
+        # Monthly NDVI variability
+        fig_seasonal.add_trace(
+            go.Bar(
+                x=month_names,
+                y=monthly_stats['NDVI_std'].values,
+                name='NDVI Std Dev',
+                marker_color='orange',
+                showlegend=False
+            ),
+            row=1, col=2
+        )
+        
+        # Data points by month
+        fig_seasonal.add_trace(
+            go.Bar(
+                x=month_names,
+                y=monthly_stats['NDVI_count'].values,
+                name='Observations',
+                marker_color='lightblue',
+                showlegend=False
+            ),
+            row=2, col=1
+        )
+        
+        # Cloud coverage
+        fig_seasonal.add_trace(
+            go.Scatter(
+                x=month_names,
+                y=monthly_stats['cloud_percent_mean'].values,
+                mode='lines+markers',
+                name='Avg Cloud %',
+                line=dict(width=2, color='gray'),
+                marker=dict(size=8),
+                showlegend=False
+            ),
+            row=2, col=2
+        )
+        
+        fig_seasonal.update_layout(height=800, title_text="Comprehensive Seasonal Analysis")
+        st.plotly_chart(fig_seasonal, use_container_width=True)
+        
+        # Seasonal insights
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("🍂 Challenging Periods")
+            lowest_months = monthly_stats['NDVI_mean'].nsmallest(3)
+            
+            st.markdown('<div class="warning-box">', unsafe_allow_html=True)
+            for month_idx, ndvi_val in lowest_months.items():
+                month_name = calendar.month_name[month_idx]
+                st.write(f"**{month_name}**: {ndvi_val:.3f} NDVI")
+            st.write("\n**Recommendations:**")
+            st.write("• Increase irrigation frequency")
+            st.write("• Monitor for heat stress")
+            st.write("• Consider shade protection")
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        with col2:
+            st.subheader("🌱 Peak Growing Periods")
+            highest_months = monthly_stats['NDVI_mean'].nlargest(3)
+            
+            st.markdown('<div class="success-box">', unsafe_allow_html=True)
+            for month_idx, ndvi_val in highest_months.items():
+                month_name = calendar.month_name[month_idx]
+                st.write(f"**{month_name}**: {ndvi_val:.3f} NDVI")
+            st.write("\n**Opportunities:**")
+            st.write("• Optimal for harvesting")
+            st.write("• Schedule maintenance in low periods")
+            st.write("• Plan expansion activities")
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Detailed monthly table
+        st.subheader("📊 Detailed Monthly Statistics")
+        display_stats = monthly_stats[['NDVI_mean', 'NDVI_std', 'NDVI_min', 'NDVI_max', 'NDVI_count', 'cloud_percent_mean']]
+        display_stats.columns = ['Mean NDVI', 'Std Dev', 'Min NDVI', 'Max NDVI', 'Observations', 'Avg Cloud %']
+        display_stats.index = month_names
+        st.dataframe(display_stats.round(3), use_container_width=True)
+    
     with tab3:
-        st.subheader(f"3-Month Vegetation Health Forecast for: **{selected_farm}**")
-        st.info("This forecast predicts the weekly NDVI value for the next 12 weeks based on historical patterns and related vegetation indices.")
-
-        forecast_df, forecast_fig = run_forecast(df_historical, forecasting_models, selected_farm)
+        st.header("🏆 Farm Performance Comparison")
         
-        if forecast_fig:
-            st.plotly_chart(forecast_fig, use_container_width=True)
-            st.markdown("##### Forecast Data")
-            st.dataframe(forecast_df, use_container_width=True)
-        else:
-            st.error(f"No forecasting model available for {selected_farm}.")
-
-    # --- TAB 4: EDA & Farm Comparison ---
+        # Farm comparison metrics
+        farm_stats = create_farm_comparison(df_filtered)
+        
+        # Top performers section
+        st.subheader("🥇 Performance Leaderboard")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        top_3 = farm_stats.head(3)
+        medals = ["🥇", "🥈", "🥉"]
+        
+        for i, (farm_name, farm) in enumerate(top_3.iterrows()):
+            with [col1, col2, col3][i]:
+                st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+                st.write(f"**{medals[i]} {farm_name}**")
+                st.write(f"Health Score: {farm['health_score']:.1f}")
+                st.write(f"Avg NDVI: {farm['NDVI_mean']:.3f}")
+                # Added a small epsilon to avoid division by zero
+                st.write(f"Stability: {1/(farm['NDVI_std'] + 1e-9):.1f}")
+                st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Performance comparison chart
+        farm_stats_reset = farm_stats.reset_index()
+        farm_stats_reset['farm_display'] = farm_stats_reset['farm_name']
+        
+        fig_comparison = px.bar(
+            farm_stats_reset,
+            x='health_score',
+            y='farm_display',
+            orientation='h',
+            title="Farm Health Score Comparison",
+            color='health_score',
+            color_continuous_scale='RdYlGn',
+            text='health_score'
+        )
+        fig_comparison.update_traces(texttemplate='%{text:.1f}', textposition='outside')
+        fig_comparison.update_layout(
+            height=max(400, len(farm_stats) * 40),
+            xaxis_title="Health Score",
+            yaxis_title="Farm"
+        )
+        st.plotly_chart(fig_comparison, use_container_width=True)
+        
+        # Detailed comparison charts
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Performance vs Stability
+            fig_scatter = px.scatter(
+                farm_stats_reset,
+                x='NDVI_mean',
+                y='NDVI_std',
+                size='NDVI_count',
+                hover_name='farm_name',
+                title="Performance vs Stability Analysis",
+                labels={
+                    'NDVI_mean': 'Average NDVI (Performance)',
+                    'NDVI_std': 'NDVI Std Dev (Risk)',
+                    'NDVI_count': 'Data Points'
+                },
+                color='health_score',
+                color_continuous_scale='RdYlGn'
+            )
+            fig_scatter.add_annotation(
+                x=farm_stats_reset['NDVI_mean'].min(),
+                y=farm_stats_reset['NDVI_std'].max(),
+                text="High Risk<br>Low Performance",
+                showarrow=False,
+                font=dict(color="red", size=10)
+            )
+            fig_scatter.add_annotation(
+                x=farm_stats_reset['NDVI_mean'].max(),
+                y=farm_stats_reset['NDVI_std'].min(),
+                text="Low Risk<br>High Performance",
+                showarrow=False,
+                font=dict(color="green", size=10)
+            )
+            st.plotly_chart(fig_scatter, use_container_width=True)
+        
+        with col2:
+            # Monthly performance heatmap
+            monthly_farm_data = df_filtered.groupby(['farm_name', 'month'])['NDVI'].mean().unstack(fill_value=0)
+            
+            fig_heatmap = px.imshow(
+                monthly_farm_data.values,
+                x=[calendar.month_abbr[i] for i in monthly_farm_data.columns],
+                y=monthly_farm_data.index,
+                title="Monthly Performance Heatmap",
+                color_continuous_scale='RdYlGn',
+                aspect="auto"
+            )
+            fig_heatmap.update_layout(
+                xaxis_title="Month",
+                yaxis_title="Farm",
+                height=400
+            )
+            st.plotly_chart(fig_heatmap, use_container_width=True)
+        
+        # Detailed metrics table
+        st.subheader("📋 Detailed Farm Metrics")
+        display_cols = ['rank', 'health_score', 'NDVI_mean', 'NDVI_std', 'NDVI_min', 'NDVI_max', 'NDVI_count']
+        display_names = ['Rank', 'Health Score', 'Avg NDVI', 'Std Dev', 'Min NDVI', 'Max NDVI', 'Data Points']
+        
+        comparison_table = farm_stats[display_cols].copy()
+        comparison_table.columns = display_names
+        comparison_table_reset = comparison_table.reset_index()
+        st.dataframe(comparison_table_reset, use_container_width=True, hide_index=True)
+    
     with tab4:
-        st.subheader("Exploratory Data Analysis")
+        st.header("📈 Trends & Forecasting")
         
-        farm_stats = df_historical.groupby('farm_name').agg(
-            ndvi_mean=('ndvi', 'mean'),
-            ndvi_std=('ndvi', 'std'),
-            ndvi_count=('ndvi', 'count')
-        ).reset_index()
-        farm_stats['health_score'] = (farm_stats['ndvi_mean'] * 0.7 + (1 - farm_stats['ndvi_std']) * 0.3) * 100
-        farm_stats = farm_stats.sort_values('health_score', ascending=False)
+        # Farm selection for detailed analysis
+        selected_farm_trend = st.selectbox(
+            "Select farm for trend analysis:",
+            options=df_filtered['farm_name'].unique()
+        )
         
-        st.markdown("##### Farm Ranking by Health Score (NDVI Mean & Stability)")
-        fig_comp = px.bar(farm_stats, x='health_score', y='farm_name', orientation='h',
-                          color='health_score', color_continuous_scale='RdYlGn',
-                          text='health_score')
-        fig_comp.update_traces(texttemplate='%{text:.1f}', textposition='outside')
-        fig_comp.update_layout(height=400, yaxis={'categoryorder':'total ascending'})
-        st.plotly_chart(fig_comp, use_container_width=True)
+        farm_trend_data = df_filtered[df_filtered['farm_name'] == selected_farm_trend].copy()
         
-        st.markdown("##### Seasonal NDVI Patterns (Portfolio Average)")
-        if 'timestamp' in df_historical.columns:
-            df_historical['month'] = df_historical['timestamp'].dt.month
-            monthly_avg = df_historical.groupby('month')['ndvi'].mean().reset_index()
-            fig_seasonal = px.line(monthly_avg, x='month', y='ndvi', markers=True,
-                                   labels={'month': 'Month of the Year', 'NDVI': 'Average NDVI'})
-            fig_seasonal.update_xaxes(dtick=1)
-            st.plotly_chart(fig_seasonal, use_container_width=True)
-
-    # --- TAB 5: Data Explorer ---
+        # Time series decomposition
+        st.subheader(f"📊 Time Series Analysis: {selected_farm_trend}")
+        
+        # Monthly aggregation for trend analysis
+        monthly_trend = farm_trend_data.groupby(farm_trend_data['timestamp'].dt.to_period('M')).agg({
+            'NDVI': 'mean',
+            'NDWI': 'mean',
+            'SAVI': 'mean',
+            'cloud_percent': 'mean'
+        })
+        monthly_trend.index = monthly_trend.index.to_timestamp()
+        
+        # Calculate trend
+        if len(monthly_trend) > 12:
+            # Simple linear trend
+            x = np.arange(len(monthly_trend))
+            trend_coef = np.polyfit(x, monthly_trend['NDVI'], 1)[0]
+            trend_direction = "Improving" if trend_coef > 0.001 else "Declining" if trend_coef < -0.001 else "Stable"
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Trend Direction", trend_direction, f"{trend_coef*12:.4f} NDVI/year")
+            with col2:
+                recent_avg = monthly_trend['NDVI'].tail(6).mean()
+                st.metric("Recent 6-Month Avg", f"{recent_avg:.3f}")
+            with col3:
+                volatility = monthly_trend['NDVI'].std()
+                stability = "High" if volatility < 0.05 else "Medium" if volatility < 0.1 else "Low"
+                st.metric("Stability", stability, f"σ={volatility:.3f}")
+        
+        # Trend visualization
+        fig_trend = make_subplots(
+            rows=2, cols=2,
+            subplot_titles=(
+                'NDVI Trend Over Time',
+                'Seasonal Decomposition',
+                'Rolling Averages',
+                'Performance Distribution'
+            ),
+            specs=[[{"secondary_y": False}, {"secondary_y": False}],
+                   [{"secondary_y": False}, {"secondary_y": False}]]
+        )
+        
+        # Main trend line
+        fig_trend.add_trace(
+            go.Scatter(
+                x=monthly_trend.index,
+                y=monthly_trend['NDVI'],
+                mode='lines+markers',
+                name='Monthly NDVI',
+                line=dict(width=2, color='#2E8B57')
+            ),
+            row=1, col=1
+        )
+        
+        # Add trend line
+        if len(monthly_trend) > 6:
+            x_trend = np.arange(len(monthly_trend))
+            y_trend = np.poly1d(np.polyfit(x_trend, monthly_trend['NDVI'], 1))(x_trend)
+            fig_trend.add_trace(
+                go.Scatter(
+                    x=monthly_trend.index,
+                    y=y_trend,
+                    mode='lines',
+                    name='Trend Line',
+                    line=dict(width=2, color='red', dash='dash')
+                ),
+                row=1, col=1
+            )
+        
+        # Seasonal pattern
+        seasonal_pattern = farm_trend_data.groupby('month')['NDVI'].mean()
+        month_names_short = [calendar.month_abbr[i] for i in seasonal_pattern.index]
+        fig_trend.add_trace(
+            go.Bar(
+                x=month_names_short,
+                y=seasonal_pattern.values,
+                name='Seasonal Pattern',
+                marker_color='lightgreen',
+                showlegend=False
+            ),
+            row=1, col=2
+        )
+        
+        # Rolling averages
+        if len(farm_trend_data) > 30:
+            farm_trend_sorted = farm_trend_data.sort_values('timestamp')
+            ma_30 = farm_trend_sorted['NDVI'].rolling(window=30, min_periods=5).mean()
+            ma_90 = farm_trend_sorted['NDVI'].rolling(window=90, min_periods=10).mean()
+            
+            fig_trend.add_trace(
+                go.Scatter(
+                    x=farm_trend_sorted['timestamp'],
+                    y=ma_30,
+                    mode='lines',
+                    name='30-day MA',
+                    line=dict(width=1, color='blue'),
+                    showlegend=False
+                ),
+                row=2, col=1
+            )
+            fig_trend.add_trace(
+                go.Scatter(
+                    x=farm_trend_sorted['timestamp'],
+                    y=ma_90,
+                    mode='lines',
+                    name='90-day MA',
+                    line=dict(width=2, color='orange'),
+                    showlegend=False
+                ),
+                row=2, col=1
+            )
+        
+        # Performance distribution
+        fig_trend.add_trace(
+            go.Histogram(
+                x=farm_trend_data['NDVI'],
+                nbinsx=20,
+                name='NDVI Distribution',
+                marker_color='lightblue',
+                showlegend=False
+            ),
+            row=2, col=2
+        )
+        
+        fig_trend.update_layout(height=800, title_text=f"Comprehensive Trend Analysis: {selected_farm_trend}")
+        st.plotly_chart(fig_trend, use_container_width=True)
+        
+        # Yearly comparison
+        st.subheader("📊 Year-over-Year Comparison")
+        yearly_comparison = farm_trend_data.groupby('year')['NDVI'].agg(['mean', 'std', 'count']).round(3)
+        yearly_comparison.columns = ['Average NDVI', 'Standard Deviation', 'Observations']
+        
+        # Calculate year-over-year change
+        yearly_comparison['YoY Change'] = yearly_comparison['Average NDVI'].pct_change().round(3)
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.dataframe(yearly_comparison, use_container_width=True)
+        
+        with col2:
+            fig_yearly = px.bar(
+                x=yearly_comparison.index,
+                y=yearly_comparison['Average NDVI'],
+                title="Average NDVI by Year",
+                color=yearly_comparison['Average NDVI'],
+                color_continuous_scale='RdYlGn'
+            )
+            fig_yearly.update_layout(showlegend=False, height=400)
+            st.plotly_chart(fig_yearly, use_container_width=True)
+    
     with tab5:
-        st.subheader("Raw Data Explorer")
-        st.dataframe(df_historical, use_container_width=True)
+        st.header("🚨 Anomaly Detection")
+        
+        # Detect anomalies
+        anomalies_df = create_anomaly_detection(df_filtered)
+        
+        if not anomalies_df.empty:
+            # Anomaly summary
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                total_anomalies = len(anomalies_df)
+                st.metric("Total Anomalies", total_anomalies)
+            
+            with col2:
+                critical_count = len(anomalies_df[anomalies_df['severity'] == 'Critical'])
+                st.metric("Critical Issues", critical_count)
+            
+            with col3:
+                recent_anomalies = len(anomalies_df[anomalies_df['timestamp'] >= anomalies_df['timestamp'].max() - timedelta(days=90)])
+                st.metric("Recent (90d)", recent_anomalies)
+            
+            with col4:
+                affected_farms = anomalies_df['farm_name'].nunique()
+                st.metric("Affected Farms", affected_farms)
+            
+            # Anomaly timeline
+            st.subheader("📈 Anomaly Timeline")
+            
+            fig_anomaly = go.Figure()
+            
+            # Normal data points (sample for performance)
+            if len(df_filtered) > 1000:
+                normal_sample = df_filtered[~df_filtered.index.isin(anomalies_df.index)].sample(
+                    min(1000, len(df_filtered) // 10)
+                )
+            else:
+                normal_sample = df_filtered[~df_filtered.index.isin(anomalies_df.index)]
+            
+            fig_anomaly.add_trace(go.Scatter(
+                x=normal_sample['timestamp'],
+                y=normal_sample['NDVI'],
+                mode='markers',
+                name='Normal',
+                marker=dict(color='lightgreen', size=4, opacity=0.6)
+            ))
+            
+            # Anomaly points by severity
+            severity_colors = {'Critical': 'red', 'High': 'orange', 'Medium': 'yellow'}
+            for severity in ['Critical', 'High', 'Medium']:
+                severity_data = anomalies_df[anomalies_df['severity'] == severity]
+                if len(severity_data) > 0:
+                    fig_anomaly.add_trace(go.Scatter(
+                        x=severity_data['timestamp'],
+                        y=severity_data['NDVI'],
+                        mode='markers',
+                        name=f'{severity} Anomaly',
+                        marker=dict(
+                            color=severity_colors[severity],
+                            size=8,
+                            symbol='x',
+                            line=dict(width=1, color='black')
+                        )
+                    ))
+            
+            fig_anomaly.update_layout(
+                title="Anomaly Detection Timeline",
+                xaxis_title="Date",
+                yaxis_title="NDVI",
+                height=500,
+                hovermode='closest'
+            )
+            st.plotly_chart(fig_anomaly, use_container_width=True)
+            
+            # Anomaly analysis by farm and time
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Anomalies by farm
+                farm_anomaly_count = anomalies_df.groupby('farm_name').size().sort_values(ascending=False)
+                fig_farm_anomaly = px.bar(
+                    x=farm_anomaly_count.values,
+                    y=farm_anomaly_count.index,
+                    orientation='h',
+                    title="Anomalies by Farm",
+                    color=farm_anomaly_count.values,
+                    color_continuous_scale='Reds'
+                )
+                fig_farm_anomaly.update_layout(showlegend=False, height=400)
+                st.plotly_chart(fig_farm_anomaly, use_container_width=True)
+            
+            with col2:
+                # Anomalies by month
+                anomalies_df['month_name'] = anomalies_df['month'].apply(lambda x: calendar.month_abbr[x])
+                monthly_anomalies = anomalies_df.groupby('month_name').size()
+                
+                fig_monthly_anomaly = px.bar(
+                    x=monthly_anomalies.index,
+                    y=monthly_anomalies.values,
+                    title="Anomalies by Month",
+                    color=monthly_anomalies.values,
+                    color_continuous_scale='Oranges'
+                )
+                fig_monthly_anomaly.update_layout(showlegend=False, height=400)
+                st.plotly_chart(fig_monthly_anomaly, use_container_width=True)
+            
+            # Recent critical anomalies table
+            st.subheader("🔥 Recent Critical Issues")
+            recent_critical = anomalies_df[
+                (anomalies_df['severity'] == 'Critical') &
+                (anomalies_df['timestamp'] >= anomalies_df['timestamp'].max() - timedelta(days=180))
+            ].sort_values('timestamp', ascending=False)
+            
+            if len(recent_critical) > 0:
+                display_critical = recent_critical[['timestamp', 'farm_name', 'NDVI', 'season', 'cloud_percent']].head(10)
+                display_critical.columns = ['Date', 'Farm', 'NDVI', 'Season', 'Cloud %']
+                st.dataframe(display_critical.round(3), use_container_width=True, hide_index=True)
+                
+                # Recommendations
+                st.subheader("💡 Recommendations")
+                worst_farm = recent_critical.groupby('farm_name').size().idxmax()
+                worst_season = recent_critical.groupby('season').size().idxmax()
+                
+                st.markdown('<div class="warning-box">', unsafe_allow_html=True)
+                st.write(f"**Priority Actions:**")
+                st.write(f"• Immediate inspection needed for **{worst_farm}**")
+                st.write(f"• Extra monitoring during **{worst_season}** season")
+                st.write(f"• Review irrigation and fertilization schedules")
+                st.write(f"• Consider soil testing for affected areas")
+                st.markdown('</div>', unsafe_allow_html=True)
+            else:
+                st.success("🎉 No recent critical anomalies detected!")
+        else:
+            st.success("🎉 No anomalies detected in the selected data!")
+            st.info("This indicates stable and healthy vegetation across all farms.")
+    
+    with tab6:
+        st.header("📋 Data Explorer")
+        
+        # Data overview
+        st.subheader("📊 Dataset Overview")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.write("**Data Structure:**")
+            st.write(f"• Shape: {df_filtered.shape[0]:,} rows × {df_filtered.shape[1]} columns")
+            st.write(f"• Date range: {df_filtered['timestamp'].min().strftime('%Y-%m-%d')} to {df_filtered['timestamp'].max().strftime('%Y-%m-%d')}")
+            st.write(f"• Farms: {df_filtered['farm_name'].nunique()}")
+            st.write(f"• Years covered: {df_filtered['year'].nunique()}")
+        
+        with col2:
+            st.write("**Data Quality:**")
+            completeness = (1 - df_filtered.isnull().sum() / len(df_filtered)) * 100
+            st.write(f"• NDVI completeness: {completeness['NDVI']:.1f}%")
+            st.write(f"• NDWI completeness: {completeness['NDWI']:.1f}%")
+            st.write(f"• SAVI completeness: {completeness['SAVI']:.1f}%")
+            st.write(f"• Average cloud cover: {df_filtered['cloud_percent'].mean():.1f}%")
+        
+        # Statistical summary
+        st.subheader("📈 Statistical Summary")
+        numeric_columns = ['NDVI', 'NDWI', 'SAVI', 'cloud_percent']
+        summary_stats = df_filtered[numeric_columns].describe().round(3)
+        st.dataframe(summary_stats, use_container_width=True)
+        
+        # Correlation matrix
+        st.subheader("🔗 Correlation Analysis")
+        correlation_matrix = df_filtered[numeric_columns].corr()
+        
+        fig_corr = px.imshow(
+            correlation_matrix,
+            text_auto=True,
+            color_continuous_scale='RdBu',
+            title="Correlation Matrix of Vegetation Indices"
+        )
+        fig_corr.update_layout(height=400)
+        st.plotly_chart(fig_corr, use_container_width=True)
+        
+        # Raw data viewer
+        st.subheader("🔍 Raw Data Viewer")
+        
+        # Filters for data exploration
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            view_farm = st.selectbox(
+                "Select farm:",
+                options=['All'] + all_farms,
+                key='explorer_farm'
+            )
+        
+        with col2:
+            view_year = st.selectbox(
+                "Select year:",
+                options=['All'] + sorted(df_filtered['year'].unique()),
+                key='explorer_year'
+            )
+        
+        with col3:
+            view_season = st.selectbox(
+                "Select season:",
+                options=['All'] + list(df_filtered['season'].unique()),
+                key='explorer_season'
+            )
+        
+        # Apply filters
+        view_data = df_filtered.copy()
+        if view_farm != 'All':
+            view_data = view_data[view_data['farm_name'] == view_farm]
+        if view_year != 'All':
+            view_data = view_data[view_data['year'] == view_year]
+        if view_season != 'All':
+            view_data = view_data[view_data['season'] == view_season]
+        
+        # Display filtered data
+        st.write(f"Showing {len(view_data):,} records")
+        
+        # Select columns to display
+        available_columns = view_data.columns.tolist()
+        default_columns = ['timestamp', 'farm_name', 'NDVI', 'NDWI', 'SAVI', 'season', 'cloud_percent']
+        display_columns = st.multiselect(
+            "Select columns to display:",
+            options=available_columns,
+            default=[col for col in default_columns if col in available_columns]
+        )
+        
+        if display_columns:
+            # Sort options
+            sort_column = st.selectbox("Sort by:", options=display_columns, index=0)
+            sort_ascending = st.checkbox("Ascending order", value=False)
+            
+            # Display data
+            display_data = view_data[display_columns].sort_values(sort_column, ascending=sort_ascending)
+            st.dataframe(display_data, use_container_width=True, height=400)
+            
+            # Download option
+            csv_data = display_data.to_csv(index=False)
+            st.download_button(
+                label="📥 Download Filtered Data as CSV",
+                data=csv_data,
+                file_name=f"palm_farm_data_filtered_{datetime.now().strftime('%Y%m%d')}.csv",
+                mime="text/csv"
+            )
+    
+    # Footer with additional info
+    st.markdown("---")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("**🌴 Palm Farm Analytics**")
+        st.markdown("Advanced monitoring dashboard for palm plantation health assessment")
+    
+    with col2:
+        st.markdown("**📊 Current Session**")
+        st.markdown(f"Farms analyzed: {len(selected_farms)}")
+        st.markdown(f"Data points: {len(df_filtered):,}")
+        st.markdown(f"Date range: {len(date_range)} days" if len(date_range) == 2 else "Full dataset")
+    
+    with col3:
+        st.markdown("**💡 Key Metrics**")
+        if not df_filtered.empty:
+            st.markdown(f"Portfolio NDVI: {df_filtered['NDVI'].mean():.3f}")
+            st.markdown(f"Best farm: {df_filtered.groupby('farm_name')['NDVI'].mean().idxmax()}")
+            st.markdown(f"Data quality: {(100 - df_filtered['cloud_percent'].mean()):.1f}%")
 
 if __name__ == "__main__":
     main()
-
